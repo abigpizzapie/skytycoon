@@ -127,10 +127,8 @@ function processTick() {
     
     renderCurrentScreen();
     
-    // Auto-save every 5 ticks
-    if (state.stats.monthsPlayed % 5 === 0) {
-        saveGame(state);
-    }
+    // Auto-save every tick
+    saveGame(state);
 }
 
 function setupBuyAircraft() {
@@ -184,6 +182,7 @@ window._buyAircraft = (typeId) => {
     if (!result.success) {
         alert(result.message);
     } else {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -194,6 +193,7 @@ window._leaseAircraft = (typeId) => {
     if (!result.success) {
         alert(result.message);
     } else {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -397,6 +397,7 @@ window._assignStaffToRoute = (routeId) => {
     if (!result.success) {
         alert(result.message);
     } else {
+        saveGame(state);
         _closeModal();
         renderCurrentScreen();
         updateHeaderStats();
@@ -446,6 +447,7 @@ window._createRoute = () => {
     if (!result.success) {
         alert(result.message);
     } else {
+        saveGame(state);
         _closeModal();
         showStaffAssignmentModal(result.route.id);
     }
@@ -488,6 +490,7 @@ window._hireStaff = (role) => {
     if (!result.success) {
         alert(result.message);
     } else {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -653,6 +656,7 @@ window._sellAircraft = (acId) => {
     if (!result.success) {
         alert(result.message);
     } else {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -724,7 +728,7 @@ window._adjustPrice = (routeId) => {
     if (newPrice === null) return;
     
     const result = adjustTicketPrice(state, routeId, parseInt(newPrice));
-    if (result.success) renderCurrentScreen();
+    if (result.success) { saveGame(state); renderCurrentScreen(); }
 };
 
 window._adjustFlights = (routeId) => {
@@ -739,6 +743,7 @@ window._adjustFlights = (routeId) => {
     if (!result.success) {
         alert(result.message);
     } else {
+        saveGame(state);
         renderCurrentScreen();
     }
 };
@@ -747,6 +752,7 @@ window._closeRoute = (routeId) => {
     if (!confirm('Close this route?')) return;
     const result = closeRoute(state, routeId);
     if (result.success) {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -807,6 +813,7 @@ window._takeLoan = () => {
     const result = takeLoan(state, parseInt(amount));
     if (!result.success) alert(result.message);
     else {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -819,6 +826,7 @@ window._repayLoan = () => {
     const result = repayLoan(state, parseInt(amount));
     if (!result.success) alert(result.message);
     else {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -871,6 +879,7 @@ window._fireStaff = (staffId) => {
     if (!confirm('Fire this staff member?')) return;
     const result = fireStaff(state, staffId);
     if (result.success) {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
