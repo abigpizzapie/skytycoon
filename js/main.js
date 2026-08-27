@@ -17,11 +17,42 @@ const CURRENCIES = [
 
 let state = null;
 
+function migrateState(data) {
+    if (data.aircraft) {
+        for (const ac of data.aircraft) {
+            if (ac.assignedRoute && !ac.assignedRoutes) {
+                ac.assignedRoutes = [ac.assignedRoute];
+                delete ac.assignedRoute;
+            } else if (!ac.assignedRoutes) {
+                ac.assignedRoutes = [];
+            }
+        }
+    }
+    if (data.routes) {
+        for (const route of data.routes) {
+            if (route.roundTripTime === undefined) {
+                const aircraft = data.aircraft?.find(a => a.id === route.aircraftId);
+                if (aircraft) {
+                    route.roundTripTime = Math.round((2 * route.distance / aircraft.speed) * 10) / 10;
+                    route.flightsPerDay = Math.max(1, Math.floor((aircraft.category === 'Widebody' ? 16 : aircraft.category === 'Narrowbody' ? 14 : 10) / route.roundTripTime));
+                } else {
+                    route.roundTripTime = 4;
+                    route.flightsPerDay = 2;
+                }
+            }
+            if (route.staffAssigned === undefined) {
+                route.staffAssigned = [];
+            }
+        }
+    }
+    return data;
+}
+
 async function init() {
     const savedGame = await loadGame();
     
     if (savedGame) {
-        state = savedGame;
+        state = migrateState(savedGame);
         initUI(state);
         return;
     }
