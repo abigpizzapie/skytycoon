@@ -7,11 +7,19 @@ function genId() {
     return nextId++;
 }
 
-function formatMoney(amount) {
-    if (Math.abs(amount) >= 1e9) return '$' + (amount / 1e9).toFixed(2) + 'B';
-    if (Math.abs(amount) >= 1e6) return '$' + (amount / 1e6).toFixed(1) + 'M';
-    if (Math.abs(amount) >= 1e3) return '$' + (amount / 1e3).toFixed(0) + 'K';
-    return '$' + amount.toFixed(0);
+let currencySymbol = '$';
+let currencyCode = 'USD';
+
+export function setCurrency(symbol, code) {
+    currencySymbol = symbol;
+    currencyCode = code;
+}
+
+export function formatMoney(amount) {
+    if (Math.abs(amount) >= 1e9) return currencySymbol + (amount / 1e9).toFixed(2) + 'B';
+    if (Math.abs(amount) >= 1e6) return currencySymbol + (amount / 1e6).toFixed(1) + 'M';
+    if (Math.abs(amount) >= 1e3) return currencySymbol + (amount / 1e3).toFixed(0) + 'K';
+    return currencySymbol + amount.toFixed(0);
 }
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
@@ -77,12 +85,15 @@ function generateId(type) {
     return `${type}_${genId()}`;
 }
 
-export function createGameState(airlineName, hubCode) {
+export function createGameState(airlineName, hubCode, currency = { symbol: '$', code: 'USD' }) {
+    currencySymbol = currency.symbol;
+    currencyCode = currency.code;
     return {
         airline: {
             name: airlineName,
             hub: hubCode,
             reputation: 50,
+            currency: currency,
             founded: { month: 1, year: 2025 }
         },
         finances: {
@@ -609,12 +620,18 @@ export function saveGame(state) {
 
 export function loadGame() {
     try {
-        const saveData = localStorage.getItem('skytycoon_save');
-        if (!saveData) return null;
-        return JSON.parse(saveData);
+        const d = localStorage.getItem('skytycoon_save');
+        if (!d) return null;
+        const parsed = JSON.parse(d);
+        if (parsed.airline && parsed.airline.currency) {
+            currencySymbol = parsed.airline.currency.symbol;
+            currencyCode = parsed.airline.currency.code;
+        }
+        return parsed;
     } catch (e) {
         return null;
     }
+}
 }
 
 export function deleteSave() {

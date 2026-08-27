@@ -2,6 +2,19 @@ import { createGameState, saveGame, loadGame, deleteSave, formatMoney } from './
 import { AIRPORTS } from './airports.js';
 import { initUI } from './ui.js';
 
+const CURRENCIES = [
+    { symbol: '$', code: 'USD', name: 'US Dollar' },
+    { symbol: '€', code: 'EUR', name: 'Euro' },
+    { symbol: '£', code: 'GBP', name: 'British Pound' },
+    { symbol: '¥', code: 'JPY', name: 'Japanese Yen' },
+    { symbol: 'A$', code: 'AUD', name: 'Australian Dollar' },
+    { symbol: 'C$', code: 'CAD', name: 'Canadian Dollar' },
+    { symbol: 'CHF', code: 'CHF', name: 'Swiss Franc' },
+    { symbol: '₹', code: 'INR', name: 'Indian Rupee' },
+    { symbol: 'R$', code: 'BRL', name: 'Brazilian Real' },
+    { symbol: '₩', code: 'KRW', name: 'South Korean Won' }
+];
+
 let state = null;
 
 function init() {
@@ -33,12 +46,19 @@ function createSetupScreen() {
             
             <div class="form-group">
                 <label>Airline Name</label>
-                <input type="text" id="airline-name" placeholder="e.g. Pacific Skies" value="Pacific Skies">
+                <input type="text" id="airline-name" placeholder="Enter your airline name..." value="" style="font-size: 16px; padding: 12px; text-align: center;">
+            </div>
+            
+            <div class="form-group">
+                <label>Currency</label>
+                <select id="game-currency" style="font-size: 16px; padding: 12px;">
+                    ${CURRENCIES.map((c, i) => `<option value="${i}" ${c.code === 'USD' ? 'selected' : ''}>${c.symbol}  ${c.name} (${c.code})</option>`).join('')}
+                </select>
             </div>
             
             <div class="form-group">
                 <label>Starting Cash</label>
-                <select id="starting-cash">
+                <select id="starting-cash" style="font-size: 16px; padding: 12px;">
                     <option value="200000000">Small ($200M) - Challenge Mode</option>
                     <option value="500000000" selected>Medium ($500M) - Balanced</option>
                     <option value="1000000000">Large ($1B) - Comfortable</option>
@@ -57,10 +77,6 @@ function createSetupScreen() {
                 <button class="btn btn-primary" id="btn-start-game" style="padding: 12px 32px; font-size: 16px">
                     Start Game
                 </button>
-            </div>
-            
-            <div style="margin-top: 16px; text-align: center">
-                <button class="btn" id="btn-continue" style="display: none">Continue Saved Game</button>
             </div>
         </div>
     `;
@@ -81,11 +97,18 @@ function createSetupScreen() {
     
     // Start button
     document.getElementById('btn-start-game').addEventListener('click', () => {
-        const name = document.getElementById('airline-name').value.trim() || 'Pacific Skies';
+        const name = document.getElementById('airline-name').value.trim();
+        if (!name) {
+            document.getElementById('airline-name').style.borderColor = '#ef4444';
+            document.getElementById('airline-name').focus();
+            return;
+        }
         const cash = parseInt(document.getElementById('starting-cash').value);
         const hub = div.querySelector('.airport-option.selected')?.dataset.code || 'JFK';
+        const currencyIdx = parseInt(document.getElementById('game-currency').value);
+        const currency = CURRENCIES[currencyIdx];
         
-        state = createGameState(name, hub);
+        state = createGameState(name, hub, currency);
         state.finances.cash = cash;
         state.finances.equity = cash;
         
