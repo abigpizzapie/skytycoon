@@ -1,6 +1,6 @@
 import { createGameState, saveGame, loadGame, deleteSave, formatMoney } from './engine.js';
 import { AIRPORTS } from './airports.js';
-import { initUI } from './ui.js';
+import { initUI, showModal } from './ui.js';
 
 const CURRENCIES = [
     { symbol: '$', code: 'USD', name: 'US Dollar' },
@@ -85,6 +85,7 @@ async function init() {
     if (savedGame) {
         state = migrateState(savedGame);
         initUI(state);
+        setupSaveCode();
         return;
     }
     
@@ -180,9 +181,87 @@ function createSetupScreen() {
         div.classList.remove('active');
         
         initUI(state);
+        setupSaveCode();
     });
     
     return div;
+}
+
+function getPlayerId() {
+    let id = localStorage.getItem('skytycoon_player_id');
+    if (!id) {
+        id = 'st_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+        localStorage.setItem('skytycoon_player_id', id);
+    }
+    return id;
+}
+
+function setupSaveCode() {
+    document.getElementById('btn-save-code')?.addEventListener('click', () => {
+        const currentId = getPlayerId();
+        const html = `
+            <div style="margin-bottom: 16px;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Your Save Code</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Share this code to continue your game on another device.</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="save-code-current" value="${currentId}" readonly style="flex: 1; padding: 8px 12px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; font-family: monospace; font-size: 14px; color: var(--text);">
+                    <button class="btn btn-sm btn-primary" onclick="navigator.clipboard.writeText('${currentId}').then(() => this.textContent = 'Copied!')">Copy</button>
+                </div>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 16px;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Load from Another Device</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Enter a save code from another device to load that game.</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="save-code-input" placeholder="Paste save code here..." style="flex: 1; padding: 8px 12px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; font-family: monospace; font-size: 14px; color: var(--text);">
+                    <button class="btn btn-sm btn-primary" id="btn-load-save-code">Load</button>
+                </div>
+                <div id="save-code-status" style="font-size: 12px; margin-top: 8px;"></div>
+            </div>
+        `;
+        showModal('Save Code', html, '<button class="btn" onclick="window._closeModal()">Close</button>');
+
+        setTimeout(() => {
+            document.getElementById('btn-load-save-code')?.addEventListener('click', async () => {
+                const code = document.getElementById('save-code-input').value.trim();
+                const status = document.getElementById('save-code-status');
+                if (!code) {
+                    status.style.color = 'var(--red)';
+                    status.textContent = 'Please enter a save code.';
+                    return;
+                }
+                if (!/^[a-zA-Z0-9_-]{1,64}$/.test(code)) {
+                    status.style.color = 'var(--red)';
+                    status.textContent = 'Invalid code format.';
+                    return;
+                }
+                status.style.color = 'var(--yellow)';
+                status.textContent = 'Loading...';
+                try {
+                    const API_BASE = window.location.origin + '/api/save.php';
+                    const resp = await fetch(`${API_BASE}?player=${code}`, { signal: AbortSignal.timeout(5000) });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data && data.airline) {
+                            localStorage.setItem('skytycoon_player_id', code);
+                            localStorage.setItem('skytycoon_save', JSON.stringify(data));
+                            status.style.color = 'var(--green)';
+                            status.textContent = 'Game loaded! Reloading...';
+                            setTimeout(() => location.reload(), 1000);
+                        } else {
+                            status.style.color = 'var(--red)';
+                            status.textContent = 'Invalid save data.';
+                        }
+                    } else {
+                        status.style.color = 'var(--red)';
+                        status.textContent = 'No save found for this code.';
+                    }
+                } catch (e) {
+                    status.style.color = 'var(--red)';
+                    status.textContent = 'Failed to connect to server.';
+                }
+            });
+        }, 50);
+    });
 }
 
 function getHubOptions() {

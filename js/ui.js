@@ -25,6 +25,7 @@ export function initUI(gameState) {
     setupHireStaff();
     setupModal();
     setupNewGame();
+    setupTransactionList();
     renderAll();
 }
 
@@ -528,7 +529,7 @@ function _closeModal() {
     document.getElementById('modal-overlay').classList.add('hidden');
 }
 
-function showModal(title, body, footer) {
+export function showModal(title, body, footer) {
     document.getElementById('modal-title').textContent = title;
     document.getElementById('modal-body').innerHTML = body;
     document.getElementById('modal-footer').innerHTML = footer || '';
@@ -745,7 +746,7 @@ function renderRoutes() {
                     </div>
                 </div>
                 <div class="route-metrics">
-                    <div class="metric"><div class="label">Ticket Price</div><div class="value">$${route.ticketPrice}</div></div>
+                    <div class="metric"><div class="label">Ticket Price</div><div class="value">${formatMoney(route.ticketPrice)}</div></div>
                     <div class="metric"><div class="label">Load Factor</div><div class="value" style="color: ${route.loadFactor > 70 ? 'var(--green)' : route.loadFactor > 40 ? 'var(--yellow)' : 'var(--red)'}">${route.loadFactor}%</div></div>
                     <div class="metric"><div class="label">Monthly Passengers</div><div class="value">${route.monthlyPassengers.toLocaleString()}</div></div>
                     <div class="metric"><div class="label">Monthly Revenue</div><div class="value" style="color: var(--green)">${formatMoney(route.monthlyRevenue)}</div></div>
@@ -765,7 +766,7 @@ window._adjustPrice = (routeId) => {
     const route = state.routes.find(r => r.id === routeId);
     if (!route) return;
     
-    const newPrice = prompt(`Set ticket price for ${route.origin}-${route.destination}\nCurrent: $${route.ticketPrice}`, route.ticketPrice);
+    const newPrice = prompt(`Set ticket price for ${route.origin}-${route.destination}\nCurrent: ${formatMoney(route.ticketPrice)}`, route.ticketPrice);
     if (newPrice === null) return;
     
     const result = adjustTicketPrice(state, routeId, parseInt(newPrice));
@@ -799,6 +800,16 @@ window._closeRoute = (routeId) => {
     }
 };
 
+function setupTransactionList() {
+    document.getElementById('transaction-list').addEventListener('click', (e) => {
+        const item = e.target.closest('.tx-clickable');
+        if (item) {
+            const txId = item.dataset.txId;
+            if (txId) showTxBreakdown(txId);
+        }
+    });
+}
+
 // ========== FINANCES ==========
 function renderFinances() {
     // Balance sheet
@@ -816,13 +827,10 @@ function renderFinances() {
         txList.innerHTML = '<div class="empty-state"><p>No transactions yet</p></div>';
     } else {
         txList.innerHTML = state.transactions.slice(0, 50).map(tx => {
-            const hasDetails = tx.details && (
-                (tx.type === 'revenue' && tx.details.routes?.length > 0) ||
-                (tx.type === 'expense' && (tx.details.routes?.length > 0 || tx.details.staff > 0 || tx.details.lease > 0))
-            );
-            const clickable = hasDetails ? `style="cursor: pointer;" onclick="window._showTxBreakdown('${tx.id}')"` : '';
+            const isDaily = tx.description === 'Daily revenue' || tx.description === 'Daily expenses';
+            const hasDetails = isDaily && tx.details;
             return `
-                <div class="transaction-item" ${clickable}>
+                <div class="transaction-item${hasDetails ? ' tx-clickable' : ''}" data-tx-id="${tx.id}">
                     <span class="transaction-desc">${tx.description}</span>
                     <span style="font-size: 11px; color: var(--text-muted); min-width: 70px; text-align: center;">${tx.date}</span>
                     <span class="transaction-amount ${tx.amount >= 0 ? 'positive' : 'negative'}">${tx.amount >= 0 ? '+' : ''}${formatMoney(tx.amount)}</span>
@@ -880,7 +888,7 @@ window._repayLoan = () => {
     }
 };
 
-window._showTxBreakdown = (txId) => {
+function showTxBreakdown(txId) {
     const tx = state.transactions.find(t => t.id === txId);
     if (!tx || !tx.details) return;
 

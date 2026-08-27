@@ -424,6 +424,8 @@ body {
 }
 
 .transaction-item:last-child { border-bottom: none; }
+.tx-clickable { cursor: pointer; }
+.tx-clickable:hover { background: var(--bg-dark); border-radius: 4px; }
 .transaction-desc { color: var(--text-dim); }
 .transaction-amount { font-weight: 600; }
 .transaction-amount.positive { color: var(--green); }

@@ -83,7 +83,7 @@ function calculateDemand(origin, destination, reputation, pricePerKm) {
     if (!destAirport) return 0;
     
     const baseDemand = Math.min(destAirport.passengers / 1000, 500000);
-    const demand = baseDemand * (reputation / 100) * Math.max(0.3, 1 - pricePerKm * 0.5);
+    const demand = baseDemand * (reputation / 100) * Math.max(0.05, 1 - pricePerKm * 2);
     return Math.round(demand * (0.8 + Math.random() * 0.4));
 }
 
