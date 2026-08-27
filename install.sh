@@ -214,8 +214,17 @@ install_container() {
         log "Template already cached"
     fi
 
+    echo ""
+    info "Storage available:"
+    pvesm list "$CT_STORAGE" | head -5
+    echo ""
+    info "Template: $TEMPLATE"
+    info "CTID: $CTID"
+    info "Storage: $CT_STORAGE"
+    echo ""
+
     info "Creating container (this may take a minute)..."
-    pct create "$CTID" "${CT_STORAGE}:vztmpl/${TEMPLATE}" \
+    if ! pct create "$CTID" "${CT_STORAGE}:vztmpl/${TEMPLATE}" \
         --hostname "$CT_HOSTNAME" \
         --memory "$CT_RAM" \
         --cores "$CT_CORES" \
@@ -223,7 +232,10 @@ install_container() {
         --net0 "name=eth0,bridge=${CT_BRIDGE},ip=dhcp" \
         --password "$CT_PASSWORD" \
         --unprivileged 1 \
-        --features "nesting=1"
+        --features "nesting=1"; then
+        err "Failed to create container. Check storage and try a different CTID."
+        exit 1
+    fi
 
     log "Container $CTID created"
 
