@@ -381,13 +381,24 @@ export function adjustFlightsPerDay(state, routeId, newFlights) {
     const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
     if (!aircraft) return { success: false, message: 'Aircraft not found' };
     
-    const maxFlights = route.maxFlightsPerDay || calculateFlightsPerDay(route.roundTripTime, MAX_FLIGHT_HOURS[aircraft.typeId] || 12);
+    const maxHours = MAX_FLIGHT_HOURS[aircraft.typeId] || 12;
+    const maxFlightsForRoute = route.maxFlightsPerDay || calculateFlightsPerDay(route.roundTripTime, maxHours);
     
     if (newFlights < 1) return { success: false, message: 'Minimum 1 flight per day' };
-    if (newFlights > maxFlights) return { success: false, message: `Maximum ${maxFlights} flights per day for this route` };
+    if (newFlights > maxFlightsForRoute) return { success: false, message: `Maximum ${maxFlightsForRoute} flights per day for this route` };
+    
+    const currentUsedHours = getAircraftUsedHours(aircraft, state.routes);
+    const routeCurrentHours = route.roundTripTime * route.flightsPerDay;
+    const routeNewHours = route.roundTripTime * newFlights;
+    const totalAfter = currentUsedHours - routeCurrentHours + routeNewHours;
+    
+    if (totalAfter > maxHours) {
+        const remainingAfter = Math.round((maxHours - currentUsedHours + routeCurrentHours) * 10) / 10;
+        return { success: false, message: `Aircraft would use ${totalAfter.toFixed(1)}h/day but only has ${maxHours}h max. Reduce other routes or choose fewer flights.` };
+    }
     
     route.flightsPerDay = newFlights;
-    return { success: true, flightsPerDay: newFlights, maxFlightsPerDay: maxFlights };
+    return { success: true, flightsPerDay: newFlights, maxFlightsPerDay: maxFlightsForRoute };
 }
 
 export function assignAircraft(state, routeId, aircraftId) {
@@ -403,8 +414,9 @@ export function assignAircraft(state, routeId, aircraftId) {
     
     const maxHours = MAX_FLIGHT_HOURS[aircraft.typeId] || 12;
     const usedHours = getAircraftUsedHours(aircraft, state.routes);
-    if (route.roundTripTime > (maxHours - usedHours)) {
-        return { success: false, message: `Aircraft has ${(maxHours - usedHours).toFixed(1)}h remaining but route needs ${route.roundTripTime}h` };
+    const routeHoursNeeded = route.roundTripTime * route.flightsPerDay;
+    if (routeHoursNeeded > (maxHours - usedHours)) {
+        return { success: false, message: `Aircraft has ${(maxHours - usedHours).toFixed(1)}h remaining but route needs ${routeHoursNeeded.toFixed(1)}h (${route.flightsPerDay} flights × ${route.roundTripTime}h)` };
     }
     
     const oldAircraft = state.aircraft.find(a => a.id === route.aircraftId);
