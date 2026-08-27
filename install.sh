@@ -2,30 +2,33 @@
 # ============================================================
 # SkyTycoon - Proxmox VE Installer
 # ============================================================
-# Creates an LXC container with nginx and deploys the game
-# from GitHub. Run on your Proxmox host:
-#
+# Interactive (default):
 #   chmod +x install.sh && ./install.sh
 #
-# Or with custom settings:
-#   CTID=250 CT_RAM=1024 LISTEN_PORT=8080 ./install.sh
+# One-liner (auto mode, defaults):
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/abigpizzapie/skytycoon/main/install.sh)"
+#
+# One-liner with custom settings:
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/abigpizzapie/skytycoon/main/install.sh)" -- --ctid 250 --ram 1024
 # ============================================================
 
 set -euo pipefail
 
-# ── Configuration ──────────────────────────────────────────
+# ── Defaults ───────────────────────────────────────────────
 APP_NAME="SkyTycoon"
 REPO_URL="https://github.com/abigpizzapie/skytycoon.git"
-CTID="${CTID:-200}"
-CT_HOSTNAME="${CT_HOSTNAME:-skytycoon}"
-CT_PASSWORD="${CT_PASSWORD:-pve}"
-CT_STORAGE="${CT_STORAGE:-local-lvm}"
-CT_RAM="${CT_RAM:-512}"
-CT_CORES="${CT_CORES:-2}"
-CT_DISK="${CT_DISK:-2}"
-CT_BRIDGE="${CT_BRIDGE:-vmbr0}"
+CTID=200
+CT_HOSTNAME="skytycoon"
+CT_PASSWORD="pve"
+CT_STORAGE="local-lvm"
+CT_RAM=512
+CT_CORES=2
+CT_DISK=2
+CT_BRIDGE="vmbr0"
 INSTALL_DIR="/var/www/html"
-LISTEN_PORT="${LISTEN_PORT:-8000}"
+LISTEN_PORT=8000
+AUTO_MODE=false
+GAME_DIR=""
 
 # ── Colors ─────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -52,6 +55,39 @@ warn()   { echo -e "${YELLOW}[!]${NC} $*"; }
 err()    { echo -e "${RED}[✗]${NC} $*" >&2; }
 info()   { echo -e "${BLUE}[i]${NC} $*"; }
 
+# ── Parse CLI args ─────────────────────────────────────────
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --auto)        AUTO_MODE=true; shift ;;
+            --ctid)        CTID="$2"; shift 2 ;;
+            --hostname)    CT_HOSTNAME="$2"; shift 2 ;;
+            --password)    CT_PASSWORD="$2"; shift 2 ;;
+            --storage)     CT_STORAGE="$2"; shift 2 ;;
+            --ram)         CT_RAM="$2"; shift 2 ;;
+            --cores)       CT_CORES="$2"; shift 2 ;;
+            --disk)        CT_DISK="$2"; shift 2 ;;
+            --bridge)      CT_BRIDGE="$2"; shift 2 ;;
+            --port)        LISTEN_PORT="$2"; shift 2 ;;
+            --help|-h)
+                echo "Usage: $0 [--auto] [--ctid ID] [--ram MB] [--port PORT] ..."
+                echo "  --auto         Non-interactive mode (use defaults, no prompts)"
+                echo "  --ctid ID      Container ID (default: 200)"
+                echo "  --hostname H   Container hostname (default: skytycoon)"
+                echo "  --password P   Container password (default: pve)"
+                echo "  --storage S    Storage target (default: local-lvm)"
+                echo "  --ram MB       RAM in MB (default: 512)"
+                echo "  --cores N      CPU cores (default: 2)"
+                echo "  --disk GB      Disk in GB (default: 2)"
+                echo "  --bridge B     Network bridge (default: vmbr0)"
+                echo "  --port PORT    Game port (default: 8000)"
+                exit 0
+                ;;
+            *) err "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+}
+
 # ── Pre-flight checks ─────────────────────────────────────
 preflight() {
     header
@@ -66,12 +102,20 @@ preflight() {
         exit 1
     fi
 
+    # Check CTID conflict — auto-resolve in auto mode
     if pct status "$CTID" &>/dev/null; then
-        err "Container ID $CTID already exists!"
-        echo ""
-        read -rp "Enter a different CTID (or press Enter to abort): " NEW_CTID
-        if [[ -z "$NEW_CTID" ]]; then exit 1; fi
-        CTID="$NEW_CTID"
+        if [[ "$AUTO_MODE" == true ]]; then
+            # Find next available ID
+            while pct status "$CTID" &>/dev/null 2>&1; do
+                CTID=$((CTID + 1))
+            done
+            info "Container ID $CTID already exists, using $CTID"
+        else
+            err "Container ID $CTID already exists!"
+            read -rp "Enter a different CTID (or press Enter to abort): " NEW_CTID
+            if [[ -z "$NEW_CTID" ]]; then exit 1; fi
+            CTID="$NEW_CTID"
+        fi
     fi
 
     if ! pvesm status | grep -q "$CT_STORAGE"; then
@@ -89,48 +133,62 @@ preflight() {
     echo ""
 }
 
-# ── Configuration prompt ───────────────────────────────────
+# ── Configuration prompt (interactive only) ────────────────
 configure() {
-    echo -e "${CYAN}Configuration (press Enter for defaults):${NC}"
-    echo ""
-
-    read -rp "  Container ID       [$CTID]: " input && CTID="${input:-$CTID}"
-    read -rp "  Hostname           [$CT_HOSTNAME]: " input && CT_HOSTNAME="${input:-$CT_HOSTNAME}"
-    read -rp "  Password           [$CT_PASSWORD]: " input && CT_PASSWORD="${input:-$CT_PASSWORD}"
-    read -rp "  Storage            [$CT_STORAGE]: " input && CT_STORAGE="${input:-$CT_STORAGE}"
-    read -rp "  RAM (MB)           [$CT_RAM]: " input && CT_RAM="${input:-$CT_RAM}"
-    read -rp "  CPU Cores          [$CT_CORES]: " input && CT_CORES="${input:-$CT_CORES}"
-    read -rp "  Disk (GB)          [$CT_DISK]: " input && CT_DISK="${input:-$CT_DISK}"
-    read -rp "  Network Bridge     [$CT_BRIDGE]: " input && CT_BRIDGE="${input:-$CT_BRIDGE}"
-    read -rp "  Game Port          [$LISTEN_PORT]: " input && LISTEN_PORT="${input:-$LISTEN_PORT}"
-
-    echo ""
-    echo -e "${YELLOW}Summary:${NC}"
-    echo "  Container: $CTID ($CT_HOSTNAME)"
-    echo "  Resources: ${CT_CORES} cores, ${CT_RAM}MB RAM, ${CT_DISK}GB disk"
-    echo "  Storage:   $CT_STORAGE"
-    echo "  Network:   $CT_BRIDGE"
-    echo "  Game URL:  http://<IP>:$LISTEN_PORT"
-    echo "  Source:    $REPO_URL"
-    echo ""
-
-    read -rp "  Proceed with installation? [Y/n]: " confirm
-    if [[ "${confirm,,}" == "n" ]]; then
-        warn "Installation cancelled."
-        exit 0
+    if [[ "$AUTO_MODE" == true ]]; then
+        info "Running in auto mode with defaults"
+        echo ""
+        return
     fi
+
+    # Only prompt if stdin is a terminal
+    if [[ -t 0 ]]; then
+        echo -e "${CYAN}Configuration (press Enter for defaults):${NC}"
+        echo ""
+
+        read -rp "  Container ID       [$CTID]: " input && CTID="${input:-$CTID}"
+        read -rp "  Hostname           [$CT_HOSTNAME]: " input && CT_HOSTNAME="${input:-$CT_HOSTNAME}"
+        read -rp "  Password           [$CT_PASSWORD]: " input && CT_PASSWORD="${input:-$CT_PASSWORD}"
+        read -rp "  Storage            [$CT_STORAGE]: " input && CT_STORAGE="${input:-$CT_STORAGE}"
+        read -rp "  RAM (MB)           [$CT_RAM]: " input && CT_RAM="${input:-$CT_RAM}"
+        read -rp "  CPU Cores          [$CT_CORES]: " input && CT_CORES="${input:-$CT_CORES}"
+        read -rp "  Disk (GB)          [$CT_DISK]: " input && CT_DISK="${input:-$CT_DISK}"
+        read -rp "  Network Bridge     [$CT_BRIDGE]: " input && CT_BRIDGE="${input:-$CT_BRIDGE}"
+        read -rp "  Game Port          [$LISTEN_PORT]: " input && LISTEN_PORT="${input:-$LISTEN_PORT}"
+
+        echo ""
+        echo -e "${YELLOW}Summary:${NC}"
+        echo "  Container: $CTID ($CT_HOSTNAME)"
+        echo "  Resources: ${CT_CORES} cores, ${CT_RAM}MB RAM, ${CT_DISK}GB disk"
+        echo "  Storage:   $CT_STORAGE"
+        echo "  Network:   $CT_BRIDGE"
+        echo "  Game URL:  http://<IP>:$LISTEN_PORT"
+        echo ""
+
+        read -rp "  Proceed with installation? [Y/n]: " confirm
+        if [[ "${confirm,,}" == "n" ]]; then
+            warn "Installation cancelled."
+            exit 0
+        fi
+    else
+        info "Non-interactive mode, using defaults"
+    fi
+    echo ""
 }
 
 # ── Clone game from GitHub (on Proxmox host) ───────────────
 clone_game() {
     info "Downloading game from GitHub..."
 
-    TMPDIR=$(mktemp -d)
-    git clone --depth 1 "$REPO_URL" "$TMPDIR" 2>/dev/null
-    log "Game downloaded"
+    GAME_DIR=$(mktemp -d)
+    git clone --depth 1 "$REPO_URL" "$GAME_DIR" 2>/dev/null
 
-    # Store path for container deployment
-    echo "$TMPDIR"
+    if [[ ! -f "$GAME_DIR/index.html" ]]; then
+        err "Failed to download game files from $REPO_URL"
+        exit 1
+    fi
+
+    log "Game downloaded"
 }
 
 # ── Create LXC container ──────────────────────────────────
@@ -147,7 +205,7 @@ install_container() {
         exit 1
     fi
 
-    if ! pveam list "$CT_STORAGE" | grep -q "$TEMPLATE"; then
+    if ! pvesm list "$CT_STORAGE" | grep -q "$TEMPLATE"; then
         info "Downloading template: $TEMPLATE"
         pveam download "$CT_STORAGE" "$TEMPLATE" >/dev/null 2>&1
         log "Template downloaded"
@@ -188,8 +246,6 @@ install_container() {
 
 # ── Deploy game inside container ──────────────────────────
 deploy_game() {
-    local game_dir="$1"
-
     info "Installing nginx..."
     pct exec "$CTID" -- bash -c "
         apt-get update -qq >/dev/null 2>&1
@@ -199,10 +255,9 @@ deploy_game() {
 
     info "Deploying game files..."
 
-    # Copy game files from host into container
-    pct push "$CTID" "$game_dir/index.html" "$INSTALL_DIR/index.html"
-    pct push "$CTID" "$game_dir/css" "$INSTALL_DIR/css"
-    pct push "$CTID" "$game_dir/js" "$INSTALL_DIR/js"
+    pct push "$CTID" "$GAME_DIR/index.html" "$INSTALL_DIR/index.html"
+    pct push "$CTID" "$GAME_DIR/css" "$INSTALL_DIR/css"
+    pct push "$CTID" "$GAME_DIR/js" "$INSTALL_DIR/js"
 
     info "Configuring nginx..."
     pct exec "$CTID" -- bash -c "
@@ -233,8 +288,8 @@ NGINXEOF
 
     log "Game deployed and nginx configured"
 
-    # Cleanup temp clone
-    rm -rf "$game_dir"
+    # Cleanup
+    rm -rf "$GAME_DIR"
 }
 
 # ── Final output ───────────────────────────────────────────
@@ -264,13 +319,13 @@ done_msg() {
 
 # ── Main ───────────────────────────────────────────────────
 main() {
+    parse_args "$@"
     header
     preflight
     configure
-    local game_dir
-    game_dir=$(clone_game)
+    clone_game
     install_container
-    deploy_game "$game_dir"
+    deploy_game
     done_msg
 }
 
