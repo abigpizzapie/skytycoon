@@ -20,6 +20,7 @@ export function initUI(gameState) {
     setupAddRoute();
     setupHireStaff();
     setupModal();
+    setupNewGame();
     renderAll();
 }
 
@@ -29,6 +30,14 @@ function setupNavigation() {
             const screen = li.dataset.screen;
             switchScreen(screen);
         });
+    });
+}
+
+function setupNewGame() {
+    document.getElementById('btn-new-game')?.addEventListener('click', () => {
+        if (!confirm('Start a new game? Your current progress will be lost unless you have a save.')) return;
+        localStorage.removeItem('skytycoon_save');
+        location.reload();
     });
 }
 
