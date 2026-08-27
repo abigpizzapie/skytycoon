@@ -233,20 +233,20 @@ export const AIRCRAFT_DATA = [
 export const AIRCRAFT_CATEGORIES = ['Regional Jet', 'Narrowbody', 'Widebody'];
 
 export const STAFF_REQUIREMENTS = {
-    'crj200':    { pilot: 1, coPilot: 1, flightAttendant: 2 },
-    'erj145':    { pilot: 1, coPilot: 1, flightAttendant: 2 },
-    'crj700':    { pilot: 1, coPilot: 1, flightAttendant: 3 },
-    'e175':      { pilot: 1, coPilot: 1, flightAttendant: 3 },
-    '737-700':   { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 4 },
-    '737-800':   { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 5 },
-    'a319':      { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 4 },
-    'a320':      { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 5 },
-    'a321':      { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 6 },
-    '767-300':   { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 6, dispatcher: 1 },
-    '787-8':     { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 7, dispatcher: 1 },
-    'a330-200':  { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 7, dispatcher: 1 },
-    'a350-900':  { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 8, dispatcher: 1 },
-    '777-300er': { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 9, dispatcher: 1 },
+    'crj200':    { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Attendant': 2 },
+    'erj145':    { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Attendant': 2 },
+    'crj700':    { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Attendant': 3 },
+    'e175':      { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Attendant': 3 },
+    '737-700':   { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 4 },
+    '737-800':   { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 5 },
+    'a319':      { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 4 },
+    'a320':      { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 5 },
+    'a321':      { 'Pilot': 1, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 6 },
+    '767-300':   { 'Pilot': 2, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 6, 'Dispatcher': 1 },
+    '787-8':     { 'Pilot': 2, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 7, 'Dispatcher': 1 },
+    'a330-200':  { 'Pilot': 2, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 7, 'Dispatcher': 1 },
+    'a350-900':  { 'Pilot': 2, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 8, 'Dispatcher': 1 },
+    '777-300er': { 'Pilot': 2, 'Co-Pilot': 1, 'Flight Engineer': 1, 'Flight Attendant': 9, 'Dispatcher': 1 },
 };
 
 export const MAX_FLIGHT_HOURS = {

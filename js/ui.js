@@ -328,7 +328,7 @@ function showStaffAssignmentModal(routeId) {
         
         html += `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px;">
-                <span>${role.replace(/([A-Z])/g, ' $1').trim()}</span>
+                <span>${role}</span>
                 <span style="color: ${color}">${assigned}/${count} assigned</span>
                 <span style="color: var(--text-muted)">${available} available</span>
             </div>`;
@@ -358,13 +358,13 @@ function showStaffAssignmentModal(routeId) {
             
             if (available.length === 0) {
                 html += `<div style="margin-bottom: 8px;">
-                    <div style="font-size: 12px; color: var(--red); margin-bottom: 4px">${role.replace(/([A-Z])/g, ' $1').trim()} — no unassigned ${role}s available (need ${stillNeeded} more)</div>
+                    <div style="font-size: 12px; color: var(--red); margin-bottom: 4px">${role} — no unassigned ${role}s available (need ${stillNeeded} more)</div>
                 </div>`;
                 continue;
             }
             
             html += `<div style="margin-bottom: 8px;">
-                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">${role.replace(/([A-Z])/g, ' $1').trim()} (need ${stillNeeded} more)</div>`;
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">${role} (need ${stillNeeded} more)</div>`;
             
             for (const staff of available) {
                 html += `

@@ -769,8 +769,9 @@ const API_BASE = window.location.origin + '/api/save.php';
 export async function saveGame(state) {
     const data = JSON.stringify(state);
     try { localStorage.setItem('skytycoon_save', data); } catch (e) {}
+    const playerId = getPlayerId();
     try {
-        const resp = await fetch(API_BASE, {
+        const resp = await fetch(`${API_BASE}?player=${playerId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: data,
