@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyTycoon - Airline Management</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <nav id="sidebar">
+            <div class="logo">
+                <span class="logo-icon">&#9992;</span>
+                <h1>SkyTycoon</h1>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-screen="dashboard"><span class="nav-icon">&#9632;</span> Dashboard</li>
+                <li data-screen="hangar"><span class="nav-icon">&#9992;</span> Hangar</li>
+                <li data-screen="routes"><span class="nav-icon">&#9733;</span> Routes</li>
+                <li><hr></li>
+                <li data-screen="finances"><span class="nav-icon">&#36;</span> Finances</li>
+                <li data-screen="staff"><span class="nav-icon">&#9786;</span> Staff</li>
+                <li data-screen="market"><span class="nav-icon">&#9775;</span> Market</li>
+                <li><hr></li>
+                <li data-screen="events"><span class="nav-icon">&#9888;</span> Events</li>
+            </ul>
+            <div class="sidebar-footer">
+                <div class="time-display">
+                    <span id="game-date">Jan 2025</span>
+                    <div class="speed-controls">
+                        <button id="speed-pause" class="speed-btn active" title="Pause">||</button>
+                        <button id="speed-1x" class="speed-btn" title="1x Speed">&#9654;</button>
+                        <button id="speed-2x" class="speed-btn" title="2x Speed">&#9654;&#9654;</button>
+                        <button id="speed-5x" class="speed-btn" title="5x Speed">&#9654;&#9654;&#9654;</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main id="content">
+            <!-- DASHBOARD -->
+            <section id="screen-dashboard" class="screen active">
+                <header class="screen-header">
+                    <h2>Dashboard</h2>
+                    <div class="header-stats">
+                        <div class="stat-pill cash"><span class="label">Cash</span><span id="stat-cash" class="value">$0</span></div>
+                        <div class="stat-pill reputation"><span class="label">Reputation</span><span id="stat-reputation" class="value">50</span></div>
+                        <div class="stat-pill passengers"><span class="label">Passengers</span><span id="stat-passengers" class="value">0</span></div>
+                    </div>
+                </header>
+                <div class="dashboard-grid">
+                    <div class="card" id="dash-overview">
+                        <h3>Overview</h3>
+                        <div class="overview-grid">
+                            <div class="overview-item"><span class="label">Aircraft</span><span id="dash-aircraft">0</span></div>
+                            <div class="overview-item"><span class="label">Routes</span><span id="dash-routes">0</span></div>
+                            <div class="overview-item"><span class="label">Staff</span><span id="dash-staff">0</span></div>
+                            <div class="overview-item"><span class="label">Hub</span><span id="dash-hub">None</span></div>
+                        </div>
+                    </div>
+                    <div class="card" id="dash-income">
+                        <h3>Monthly P&L</h3>
+                        <div id="dash-pl">
+                            <div class="pl-row"><span>Revenue</span><span id="pl-revenue">$0</span></div>
+                            <div class="pl-row"><span>Expenses</span><span id="pl-expenses">$0</span></div>
+                            <div class="pl-row highlight"><span>Net Income</span><span id="pl-net">$0</span></div>
+                        </div>
+                    </div>
+                    <div class="card" id="dash-routes-list">
+                        <h3>Active Routes</h3>
+                        <div id="dash-routes-container"></div>
+                    </div>
+                    <div class="card" id="dash-news">
+                        <h3>News Feed</h3>
+                        <div id="news-feed"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- HANGAR -->
+            <section id="screen-hangar" class="screen">
+                <header class="screen-header">
+                    <h2>Aircraft Hangar</h2>
+                    <button class="btn btn-primary" id="btn-buy-aircraft">+ Buy Aircraft</button>
+                </header>
+                <div id="hangar-list"></div>
+            </section>
+
+            <!-- ROUTES -->
+            <section id="screen-routes" class="screen">
+                <header class="screen-header">
+                    <h2>Routes</h2>
+                    <button class="btn btn-primary" id="btn-add-route">+ Create Route</button>
+                </header>
+                <div id="routes-list"></div>
+            </section>
+
+            <!-- FINANCES -->
+            <section id="screen-finances" class="screen">
+                <header class="screen-header">
+                    <h2>Finances</h2>
+                </header>
+                <div class="finances-grid">
+                    <div class="card">
+                        <h3>Balance Sheet</h3>
+                        <div id="balance-sheet"></div>
+                    </div>
+                    <div class="card">
+                        <h3>Transaction History</h3>
+                        <div id="transaction-list"></div>
+                    </div>
+                    <div class="card">
+                        <h3>Loans</h3>
+                        <div id="loans-panel"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STAFF -->
+            <section id="screen-staff" class="screen">
+                <header class="screen-header">
+                    <h2>Staff</h2>
+                    <button class="btn btn-primary" id="btn-hire-staff">+ Hire Staff</button>
+                </header>
+                <div id="staff-list"></div>
+            </section>
+
+            <!-- MARKET -->
+            <section id="screen-market" class="screen">
+                <header class="screen-header">
+                    <h2>Aircraft Market</h2>
+                </header>
+                <div id="market-list"></div>
+            </section>
+
+            <!-- EVENTS -->
+            <section id="screen-events" class="screen">
+                <header class="screen-header">
+                    <h2>Events & Notifications</h2>
+                </header>
+                <div id="events-list"></div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    <div id="modal-overlay" class="hidden">
+        <div id="modal" class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title"></h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div id="modal-body"></div>
+            <div class="modal-footer" id="modal-footer"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
