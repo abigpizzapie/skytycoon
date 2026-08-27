@@ -21,6 +21,7 @@ CTID=200
 CT_HOSTNAME="skytycoon"
 CT_PASSWORD="pve"
 CT_STORAGE="local-lvm"
+CT_TEMPLATE_STORAGE="local"
 CT_RAM=512
 CT_CORES=2
 CT_DISK=2
@@ -64,6 +65,7 @@ parse_args() {
             --hostname)    CT_HOSTNAME="$2"; shift 2 ;;
             --password)    CT_PASSWORD="$2"; shift 2 ;;
             --storage)     CT_STORAGE="$2"; shift 2 ;;
+            --template-storage) CT_TEMPLATE_STORAGE="$2"; shift 2 ;;
             --ram)         CT_RAM="$2"; shift 2 ;;
             --cores)       CT_CORES="$2"; shift 2 ;;
             --disk)        CT_DISK="$2"; shift 2 ;;
@@ -205,26 +207,24 @@ install_container() {
         exit 1
     fi
 
-    if ! pvesm list "$CT_STORAGE" | grep -q "$TEMPLATE"; then
+    if ! pvesm list "$CT_TEMPLATE_STORAGE" | grep -q "$TEMPLATE"; then
         info "Downloading template: $TEMPLATE"
         info "(this may take a few minutes...)"
-        pveam download "$CT_STORAGE" "$TEMPLATE"
+        pveam download "$CT_TEMPLATE_STORAGE" "$TEMPLATE"
         log "Template downloaded"
     else
         log "Template already cached"
     fi
 
     echo ""
-    info "Storage available:"
-    pvesm list "$CT_STORAGE" | head -5
-    echo ""
+    info "Template storage: $CT_TEMPLATE_STORAGE"
+    info "Container storage: $CT_STORAGE"
     info "Template: $TEMPLATE"
     info "CTID: $CTID"
-    info "Storage: $CT_STORAGE"
     echo ""
 
     info "Creating container (this may take a minute)..."
-    if ! pct create "$CTID" "${CT_STORAGE}:vztmpl/${TEMPLATE}" \
+    if ! pct create "$CTID" "${CT_TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
         --hostname "$CT_HOSTNAME" \
         --memory "$CT_RAM" \
         --cores "$CT_CORES" \
