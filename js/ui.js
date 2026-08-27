@@ -815,12 +815,19 @@ function renderFinances() {
     if (state.transactions.length === 0) {
         txList.innerHTML = '<div class="empty-state"><p>No transactions yet</p></div>';
     } else {
-        txList.innerHTML = state.transactions.slice(0, 50).map(tx => `
-            <div class="transaction-item">
-                <span class="transaction-desc">${tx.description}</span>
-                <span class="transaction-amount ${tx.amount >= 0 ? 'positive' : 'negative'}">${tx.amount >= 0 ? '+' : ''}${formatMoney(tx.amount)}</span>
-            </div>
-        `).join('');
+        txList.innerHTML = state.transactions.slice(0, 50).map(tx => {
+            const hasDetails = tx.details && (
+                (tx.type === 'revenue' && tx.details.routes?.length > 0) ||
+                (tx.type === 'expense' && (tx.details.routes?.length > 0 || tx.details.staff > 0 || tx.details.lease > 0))
+            );
+            const clickable = hasDetails ? `style="cursor: pointer;" onclick="window._showTxBreakdown('${tx.id}')"` : '';
+            return `
+                <div class="transaction-item" ${clickable}>
+                    <span class="transaction-desc">${tx.description}</span>
+                    <span style="font-size: 11px; color: var(--text-muted); min-width: 70px; text-align: center;">${tx.date}</span>
+                    <span class="transaction-amount ${tx.amount >= 0 ? 'positive' : 'negative'}">${tx.amount >= 0 ? '+' : ''}${formatMoney(tx.amount)}</span>
+                </div>`;
+        }).join('');
     }
     
     // Loans
@@ -871,6 +878,75 @@ window._repayLoan = () => {
         renderCurrentScreen();
         updateHeaderStats();
     }
+};
+
+window._showTxBreakdown = (txId) => {
+    const tx = state.transactions.find(t => t.id === txId);
+    if (!tx || !tx.details) return;
+
+    let html = '';
+
+    if (tx.type === 'revenue' && tx.details.routes) {
+        html += `<div style="margin-bottom: 12px; font-weight: 600;">Revenue by Route</div>`;
+        html += `<table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+            <tr style="color: var(--text-muted); border-bottom: 1px solid var(--border);">
+                <th style="text-align: left; padding: 6px 0;">Route</th>
+                <th style="text-align: right; padding: 6px 0;">Pax</th>
+                <th style="text-align: right; padding: 6px 0;">Load</th>
+                <th style="text-align: right; padding: 6px 0;">Revenue</th>
+            </tr>`;
+        for (const r of tx.details.routes) {
+            html += `<tr style="border-bottom: 1px solid var(--border);">
+                <td style="padding: 6px 0; font-weight: 600;">${r.route}</td>
+                <td style="text-align: right; padding: 6px 0;">${r.passengers.toLocaleString()}</td>
+                <td style="text-align: right; padding: 6px 0;">${r.loadFactor}%</td>
+                <td style="text-align: right; padding: 6px 0; color: var(--green);">${formatMoney(r.revenue)}</td>
+            </tr>`;
+        }
+        html += `</table>`;
+        html += `<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-weight: 600;">
+            <span>Total Passengers</span><span>${tx.details.totalPassengers.toLocaleString()}</span>
+        </div>`;
+    }
+
+    if (tx.type === 'expense' && tx.details) {
+        if (tx.details.routes && tx.details.routes.length > 0) {
+            html += `<div style="margin-bottom: 12px; font-weight: 600;">Route Operating Costs</div>`;
+            html += `<table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                <tr style="color: var(--text-muted); border-bottom: 1px solid var(--border);">
+                    <th style="text-align: left; padding: 6px 0;">Route</th>
+                    <th style="text-align: right; padding: 6px 0;">Fuel</th>
+                    <th style="text-align: right; padding: 6px 0;">Maint</th>
+                    <th style="text-align: right; padding: 6px 0;">Total</th>
+                </tr>`;
+            for (const r of tx.details.routes) {
+                html += `<tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 6px 0; font-weight: 600;">${r.route}</td>
+                    <td style="text-align: right; padding: 6px 0;">${formatMoney(r.fuel)}</td>
+                    <td style="text-align: right; padding: 6px 0;">${formatMoney(r.maintenance)}</td>
+                    <td style="text-align: right; padding: 6px 0; color: var(--red);">${formatMoney(r.total)}</td>
+                </tr>`;
+            }
+            html += `</table>`;
+        }
+
+        const otherCosts = [];
+        if (tx.details.staff > 0) otherCosts.push({ label: 'Staff Salaries', amount: tx.details.staff });
+        if (tx.details.lease > 0) otherCosts.push({ label: 'Aircraft Leases', amount: tx.details.lease });
+        if (tx.details.interest > 0) otherCosts.push({ label: 'Loan Interest', amount: tx.details.interest });
+
+        if (otherCosts.length > 0) {
+            html += `<div style="margin-top: 12px; margin-bottom: 8px; font-weight: 600;">Other Costs</div>`;
+            for (const c of otherCosts) {
+                html += `<div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--border);">
+                    <span>${c.label}</span>
+                    <span style="color: var(--red);">${formatMoney(c.amount)}</span>
+                </div>`;
+            }
+        }
+    }
+
+    showModal(`Breakdown — ${tx.description} (${tx.date})`, html, '<button class="btn" onclick="window._closeModal()">Close</button>');
 };
 
 // ========== STAFF ==========

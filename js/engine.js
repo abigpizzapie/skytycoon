@@ -606,6 +606,8 @@ export function processDay(state) {
     let totalRevenue = 0;
     let totalExpenses = 0;
     let totalPassengers = 0;
+    const routeBreakdown = [];
+    const expenseBreakdown = { routes: [], staff: 0, lease: 0, interest: 0 };
     
     for (const route of state.routes) {
         const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
@@ -639,6 +641,22 @@ export function processDay(state) {
         totalRevenue += revenue;
         totalExpenses += routeExpenses;
         totalPassengers += passengers;
+        
+        routeBreakdown.push({
+            route: `${route.origin}-${route.destination}`,
+            passengers,
+            revenue,
+            fuel: Math.round(fuelCost),
+            maintenance: Math.round(maintenanceCost),
+            profit: Math.round(revenue - routeExpenses),
+            loadFactor: Math.round(loadFactor * 100)
+        });
+        expenseBreakdown.routes.push({
+            route: `${route.origin}-${route.destination}`,
+            fuel: Math.round(fuelCost),
+            maintenance: Math.round(maintenanceCost),
+            total: Math.round(routeExpenses)
+        });
     }
     
     const csStaffCount = state.staff.filter(s => s.role === 'Customer Service').length;
@@ -659,10 +677,13 @@ export function processDay(state) {
 
     const dailyStaffExpense = state.staff.reduce((sum, s) => sum + s.salary, 0) / 30;
     totalExpenses += dailyStaffExpense;
+    expenseBreakdown.staff = Math.round(dailyStaffExpense);
     
     for (const aircraft of state.aircraft) {
         if (aircraft.leased && aircraft.leasePrice) {
-            totalExpenses += aircraft.leasePrice / 30;
+            const dailyLease = aircraft.leasePrice / 30;
+            totalExpenses += dailyLease;
+            expenseBreakdown.lease += Math.round(dailyLease);
         }
     }
     
@@ -695,11 +716,12 @@ export function processDay(state) {
         const interest = Math.round(state.finances.debt * 0.05 / 365);
         state.finances.cash -= interest;
         state.finances.totalExpenses += interest;
+        expenseBreakdown.interest = interest;
         addTransaction(state, 'Loan interest', -interest, 'expense');
     }
     
-    addTransaction(state, 'Daily revenue', totalRevenue, 'revenue');
-    addTransaction(state, 'Daily expenses', -totalExpenses, 'expense');
+    addTransaction(state, 'Daily revenue', totalRevenue, 'revenue', { routes: routeBreakdown, totalPassengers });
+    addTransaction(state, 'Daily expenses', -totalExpenses, 'expense', expenseBreakdown);
     
     generateEvents(state);
     
@@ -776,14 +798,15 @@ function updateAICompetitors(state) {
     }
 }
 
-function addTransaction(state, description, amount, type) {
+function addTransaction(state, description, amount, type, details) {
     const tx = {
         id: generateId('tx'),
         description,
         amount,
         type,
-        date: `${state.month}/${state.year}`,
-        balance: state.finances.cash
+        date: `${state.day}/${state.month}/${state.year}`,
+        balance: state.finances.cash,
+        details: details || null
     };
     state.transactions.unshift(tx);
     if (state.transactions.length > 200) state.transactions.pop();
