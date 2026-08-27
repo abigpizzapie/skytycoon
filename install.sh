@@ -280,9 +280,14 @@ deploy_game() {
 
     info "Deploying game files..."
 
+    pct exec "$CTID" -- mkdir -p "$INSTALL_DIR/css" "$INSTALL_DIR/js"
     pct push "$CTID" "$GAME_DIR/index.html" "$INSTALL_DIR/index.html"
-    pct push "$CTID" "$GAME_DIR/css" "$INSTALL_DIR/css"
-    pct push "$CTID" "$GAME_DIR/js" "$INSTALL_DIR/js"
+    pct push "$CTID" "$GAME_DIR/css/style.css" "$INSTALL_DIR/css/style.css"
+    pct push "$CTID" "$GAME_DIR/js/aircraft.js" "$INSTALL_DIR/js/aircraft.js"
+    pct push "$CTID" "$GAME_DIR/js/airports.js" "$INSTALL_DIR/js/airports.js"
+    pct push "$CTID" "$GAME_DIR/js/engine.js" "$INSTALL_DIR/js/engine.js"
+    pct push "$CTID" "$GAME_DIR/js/ui.js" "$INSTALL_DIR/js/ui.js"
+    pct push "$CTID" "$GAME_DIR/js/main.js" "$INSTALL_DIR/js/main.js"
 
     info "Configuring nginx..."
     pct exec "$CTID" -- bash -c "
