@@ -1,4 +1,4 @@
-import { AIRCRAFT_DATA } from './aircraft.js';
+import { AIRCRAFT_DATA, STAFF_REQUIREMENTS, MAX_FLIGHT_HOURS } from './aircraft.js';
 import { AIRPORTS, getAirport } from './airports.js';
 
 let nextId = 1;
@@ -31,6 +31,25 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
               Math.sin(dLon/2) * Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
+}
+
+function calculateFlightTime(distance, speed) {
+    return (2 * distance) / speed;
+}
+
+function calculateFlightsPerDay(roundTripTime, maxHours) {
+    if (roundTripTime <= 0) return 0;
+    return Math.floor(maxHours / roundTripTime);
+}
+
+function getAircraftUsedHours(aircraft, routes) {
+    if (!aircraft.assignedRoutes || aircraft.assignedRoutes.length === 0) return 0;
+    let totalHours = 0;
+    for (const routeId of aircraft.assignedRoutes) {
+        const route = routes.find(r => r.id === routeId);
+        if (route) totalHours += route.roundTripTime * route.flightsPerDay;
+    }
+    return totalHours;
 }
 
 function calculateDemand(origin, destination, reputation, pricePerKm) {
@@ -158,7 +177,7 @@ export function buyAircraft(state, aircraftTypeId) {
         crewRequired: template.crewRequired,
         minRunway: template.minRunway,
         status: 'idle',
-        assignedRoute: null,
+        assignedRoutes: [],
         age: 0,
         condition: 100,
         totalFlights: 0,
@@ -196,7 +215,7 @@ export function leaseAircraft(state, aircraftTypeId) {
         crewRequired: template.crewRequired,
         minRunway: template.minRunway,
         status: 'idle',
-        assignedRoute: null,
+        assignedRoutes: [],
         age: 0,
         condition: 100,
         totalFlights: 0,
@@ -218,7 +237,7 @@ export function sellAircraft(state, aircraftId) {
     if (idx === -1) return { success: false, message: 'Aircraft not found' };
     
     const aircraft = state.aircraft[idx];
-    if (aircraft.status === 'active') return { success: false, message: 'Cannot sell active aircraft' };
+    if (aircraft.assignedRoutes && aircraft.assignedRoutes.length > 0) return { success: false, message: 'Cannot sell aircraft with active routes' };
     
     const template = AIRCRAFT_DATA.find(a => a.id === aircraft.typeId);
     const sellPrice = Math.round(template.price * 0.7 * (aircraft.condition / 100));
@@ -257,8 +276,19 @@ export function createRoute(state, originCode, destinationCode, aircraftId) {
     );
     if (existingRoute) return { success: false, message: 'Route already exists' };
     
-    if (aircraft.assignedRoute) {
-        return { success: false, message: 'Aircraft is already assigned to a route' };
+    const roundTripTime = calculateFlightTime(distance, aircraft.speed);
+    const maxHours = MAX_FLIGHT_HOURS[aircraft.typeId] || 12;
+    const flightsPerDay = calculateFlightsPerDay(roundTripTime, maxHours);
+    
+    if (flightsPerDay < 1) {
+        return { success: false, message: `Route requires ${roundTripTime.toFixed(1)}h round trip but aircraft only has ${maxHours}h/day` };
+    }
+    
+    const usedHours = getAircraftUsedHours(aircraft, state.routes);
+    const remainingHours = maxHours - usedHours;
+    
+    if (roundTripTime > remainingHours) {
+        return { success: false, message: `Aircraft has ${remainingHours.toFixed(1)}h remaining today but this route needs ${roundTripTime.toFixed(1)}h round trip` };
     }
     
     const competition = state.marketCompetition.filter(c => {
@@ -277,21 +307,23 @@ export function createRoute(state, originCode, destinationCode, aircraftId) {
         ticketPrice: ticketPrice,
         reputation: state.airline.reputation,
         status: 'active',
+        roundTripTime: Math.round(roundTripTime * 10) / 10,
+        flightsPerDay: flightsPerDay,
+        monthlyFlights: 0,
         monthlyRevenue: 0,
         monthlyPassengers: 0,
-        monthlyFlights: 0,
-        loadFactor: 0
+        loadFactor: 0,
+        staffAssigned: []
     };
     
-    aircraft.status = 'active';
-    aircraft.assignedRoute = route.id;
+    aircraft.assignedRoutes.push(route.id);
+    if (aircraft.status === 'idle') aircraft.status = 'active';
     
     state.routes.push(route);
     
-    const flightTime = Math.ceil(distance / 800) + 1;
-    addNews(state, `Opened new route ${originCode}-${destinationCode} (Flight time: ${flightTime}h)`, 'positive');
+    addNews(state, `Opened new route ${originCode}-${destinationCode} (${flightsPerDay} flights/day, ${roundTripTime.toFixed(1)}h round trip)`, 'positive');
     
-    return { success: true, route, ticketPrice };
+    return { success: true, route, ticketPrice, roundTripTime, flightsPerDay };
 }
 
 export function closeRoute(state, routeId) {
@@ -301,8 +333,16 @@ export function closeRoute(state, routeId) {
     const route = state.routes[idx];
     const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
     if (aircraft) {
-        aircraft.status = 'idle';
-        aircraft.assignedRoute = null;
+        aircraft.assignedRoutes = aircraft.assignedRoutes.filter(rId => rId !== routeId);
+        if (aircraft.assignedRoutes.length === 0) {
+            aircraft.status = 'idle';
+        }
+    }
+    
+    for (const staff of state.staff) {
+        if (staff.assignedRoute === routeId) {
+            staff.assignedRoute = null;
+        }
     }
     
     state.routes.splice(idx, 1);
@@ -325,19 +365,28 @@ export function assignAircraft(state, routeId, aircraftId) {
     
     const aircraft = state.aircraft.find(a => a.id === aircraftId);
     if (!aircraft) return { success: false, message: 'Aircraft not found' };
-    if (aircraft.assignedRoute && aircraft.assignedRoute !== routeId) {
-        return { success: false, message: 'Aircraft is assigned to another route' };
+    
+    if (aircraft.id === route.aircraftId) {
+        return { success: false, message: 'Aircraft is already assigned to this route' };
+    }
+    
+    const maxHours = MAX_FLIGHT_HOURS[aircraft.typeId] || 12;
+    const usedHours = getAircraftUsedHours(aircraft, state.routes);
+    if (route.roundTripTime > (maxHours - usedHours)) {
+        return { success: false, message: `Aircraft has ${(maxHours - usedHours).toFixed(1)}h remaining but route needs ${route.roundTripTime}h` };
     }
     
     const oldAircraft = state.aircraft.find(a => a.id === route.aircraftId);
     if (oldAircraft) {
-        oldAircraft.status = 'idle';
-        oldAircraft.assignedRoute = null;
+        oldAircraft.assignedRoutes = oldAircraft.assignedRoutes.filter(rId => rId !== routeId);
+        if (oldAircraft.assignedRoutes.length === 0) {
+            oldAircraft.status = 'idle';
+        }
     }
     
     route.aircraftId = aircraftId;
+    aircraft.assignedRoutes.push(routeId);
     aircraft.status = 'active';
-    aircraft.assignedRoute = routeId;
     
     return { success: true };
 }
@@ -388,11 +437,115 @@ export function fireStaff(state, staffId) {
     if (idx === -1) return { success: false, message: 'Staff not found' };
     
     const staff = state.staff[idx];
+    if (staff.assignedRoute) {
+        return { success: false, message: 'Cannot fire staff assigned to a route. Unassign them first.' };
+    }
     state.staff.splice(idx, 1);
     
     addTransaction(state, `Severance for ${staff.name}`, -staff.salary, 'expense');
     
     return { success: true };
+}
+
+export function getAvailableStaff(state, role) {
+    return state.staff.filter(s => s.role === role && !s.assignedRoute);
+}
+
+export function checkStaffRequirements(state, route) {
+    const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
+    if (!aircraft) return { met: false, missing: {}, assigned: 0, required: 0 };
+    
+    const requirements = STAFF_REQUIREMENTS[aircraft.typeId] || {};
+    const missing = {};
+    let totalRequired = 0;
+    let totalAssigned = 0;
+    
+    for (const [role, count] of Object.entries(requirements)) {
+        const assignedCount = state.staff.filter(s => 
+            s.assignedRoute === route.id && s.role === role
+        ).length;
+        totalRequired += count;
+        totalAssigned += assignedCount;
+        if (assignedCount < count) {
+            missing[role] = count - assignedCount;
+        }
+    }
+    
+    return {
+        met: Object.keys(missing).length === 0,
+        missing,
+        assigned: totalAssigned,
+        required: totalRequired
+    };
+}
+
+export function getRouteStaff(state, routeId) {
+    return state.staff.filter(s => s.assignedRoute === routeId);
+}
+
+export function assignStaffToRoute(state, routeId, staffIds) {
+    const route = state.routes.find(r => r.id === routeId);
+    if (!route) return { success: false, message: 'Route not found' };
+    
+    const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
+    if (!aircraft) return { success: false, message: 'Aircraft not found' };
+    
+    const requirements = STAFF_REQUIREMENTS[aircraft.typeId] || {};
+    
+    const roleCounts = {};
+    for (const staffId of staffIds) {
+        const staff = state.staff.find(s => s.id === staffId);
+        if (!staff) return { success: false, message: `Staff ${staffId} not found` };
+        if (staff.assignedRoute && staff.assignedRoute !== routeId) {
+            return { success: false, message: `${staff.name} is already assigned to another route` };
+        }
+        roleCounts[staff.role] = (roleCounts[staff.role] || 0) + 1;
+    }
+    
+    for (const [role, count] of Object.entries(requirements)) {
+        if ((roleCounts[role] || 0) < count) {
+            return { success: false, message: `Need ${count} ${role}s but only ${roleCounts[role] || 0} selected` };
+        }
+    }
+    
+    for (const staffId of staffIds) {
+        const staff = state.staff.find(s => s.id === staffId);
+        if (staff) staff.assignedRoute = routeId;
+    }
+    
+    route.staffAssigned = staffIds;
+    
+    return { success: true };
+}
+
+export function unassignStaffFromRoute(state, routeId) {
+    const route = state.routes.find(r => r.id === routeId);
+    if (!route) return { success: false, message: 'Route not found' };
+    
+    for (const staff of state.staff) {
+        if (staff.assignedRoute === routeId) {
+            staff.assignedRoute = null;
+        }
+    }
+    
+    route.staffAssigned = [];
+    
+    return { success: true };
+}
+
+export function getAircraftCapacityInfo(state, aircraftId) {
+    const aircraft = state.aircraft.find(a => a.id === aircraftId);
+    if (!aircraft) return null;
+    
+    const maxHours = MAX_FLIGHT_HOURS[aircraft.typeId] || 12;
+    const usedHours = getAircraftUsedHours(aircraft, state.routes);
+    
+    return {
+        maxHours,
+        usedHours: Math.round(usedHours * 10) / 10,
+        remainingHours: Math.round((maxHours - usedHours) * 10) / 10,
+        routeCount: aircraft.assignedRoutes.length
+    };
 }
 
 export function takeLoan(state, amount) {
@@ -425,58 +578,52 @@ export function processMonth(state) {
     let totalExpenses = 0;
     let totalPassengers = 0;
     
-    // Process each route
     for (const route of state.routes) {
         const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
         const template = AIRCRAFT_DATA.find(a => a.id === aircraft?.typeId);
         if (!aircraft || !template) continue;
         
-        const dest = getAirport(route.destination);
-        const origin = getAirport(route.origin);
-        const distance = haversineDistance(origin.lat, origin.lon, dest.lat, dest.lon);
+        const routeStaff = state.staff.filter(s => s.assignedRoute === route.id);
+        if (routeStaff.length === 0) continue;
         
-        const flightsPerMonth = 30 / Math.max(1, Math.ceil(distance / 800) + 1);
-        const demand = calculateDemand(route.origin, route.destination, route.reputation, route.ticketPrice / distance);
-        const loadFactor = Math.min(0.95, Math.max(0.3, demand / (aircraft.capacity * flightsPerMonth)));
+        const monthlyFlights = route.flightsPerDay * 26;
         
-        const passengers = Math.round(flightsPerMonth * aircraft.capacity * loadFactor);
+        const demand = calculateDemand(route.origin, route.destination, route.reputation, route.ticketPrice / route.distance);
+        const loadFactor = Math.min(0.95, Math.max(0.3, demand / (aircraft.capacity * monthlyFlights)));
+        
+        const passengers = Math.round(monthlyFlights * aircraft.capacity * loadFactor);
         const revenue = Math.round(passengers * route.ticketPrice);
         
-        // Expenses for this route
-        const fuelCost = template.fuelBurn * 3.2 * 1000 * flightsPerMonth * (distance / 800);
+        const fuelCost = template.fuelBurn * 3.2 * 1000 * monthlyFlights * (route.distance / aircraft.speed);
         const maintenanceCost = template.maintenanceCost;
         const routeExpenses = fuelCost + maintenanceCost;
         
         route.monthlyRevenue = revenue;
         route.monthlyPassengers = passengers;
-        route.monthlyFlights = Math.round(flightsPerMonth);
+        route.monthlyFlights = monthlyFlights;
         route.loadFactor = Math.round(loadFactor * 100);
         
-        aircraft.totalFlights += Math.round(flightsPerMonth);
+        aircraft.totalFlights += monthlyFlights;
         
         totalRevenue += revenue;
         totalExpenses += routeExpenses;
         totalPassengers += passengers;
     }
     
-    // Staff expenses
     const staffExpense = state.staff.reduce((sum, s) => sum + s.salary, 0);
     totalExpenses += staffExpense;
     
-    // Lease expenses
     for (const aircraft of state.aircraft) {
         if (aircraft.leased && aircraft.leasePrice) {
             totalExpenses += aircraft.leasePrice;
         }
     }
     
-    // Update finances
     state.finances.cash += totalRevenue - totalExpenses;
     state.finances.totalRevenue += totalRevenue;
     state.finances.totalExpenses += totalExpenses;
     state.finances.equity = state.finances.cash + state.finances.assets - state.finances.debt;
     
-    // Update reputation based on performance
     const avgLoadFactor = state.routes.length > 0 
         ? state.routes.reduce((sum, r) => sum + r.loadFactor, 0) / state.routes.length 
         : 50;
@@ -487,11 +634,9 @@ export function processMonth(state) {
         state.airline.reputation = Math.max(0, state.airline.reputation - 0.5);
     }
     
-    // Update stats
     state.stats.totalPassengers += totalPassengers;
     state.stats.monthsPlayed++;
     
-    // Aircraft aging
     for (const aircraft of state.aircraft) {
         aircraft.age++;
         if (aircraft.age % 12 === 0) {
@@ -499,7 +644,6 @@ export function processMonth(state) {
         }
     }
     
-    // Interest on debt
     if (state.finances.debt > 0) {
         const interest = Math.round(state.finances.debt * 0.005);
         state.finances.cash -= interest;
@@ -507,17 +651,13 @@ export function processMonth(state) {
         addTransaction(state, 'Loan interest payment', -interest, 'expense');
     }
     
-    // Add monthly summary
     addTransaction(state, 'Monthly revenue', totalRevenue, 'revenue');
     addTransaction(state, 'Monthly expenses', -totalExpenses, 'expense');
     
-    // Generate events
     generateEvents(state);
     
-    // Update AI competitors
     updateAICompetitors(state);
     
-    // Advance time
     state.month++;
     if (state.month > 12) {
         state.month = 1;
@@ -541,7 +681,7 @@ function generateEvents(state) {
         { type: 'bad', text: 'A competitor launched aggressive pricing on overlapping routes.', effect: () => { state.airline.reputation = Math.max(0, state.airline.reputation - 1); } },
         { type: 'good', text: 'A partnership with a travel agency boosted bookings.', effect: () => { state.finances.cash += 2000000; } },
         { type: 'bad', text: 'A minor maintenance issue grounded one of your aircraft.', effect: () => {
-            const ac = state.aircraft.find(a => a.status === 'active');
+            const ac = state.aircraft.find(a => a.assignedRoutes && a.assignedRoutes.length > 0);
             if (ac) { ac.condition = Math.max(10, ac.condition - 10); }
         }},
         { type: 'neutral', text: 'Industry analysts predict steady growth in air travel demand.', effect: () => {} },

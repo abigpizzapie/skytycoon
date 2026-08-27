@@ -231,3 +231,37 @@ export const AIRCRAFT_DATA = [
 ];
 
 export const AIRCRAFT_CATEGORIES = ['Regional Jet', 'Narrowbody', 'Widebody'];
+
+export const STAFF_REQUIREMENTS = {
+    'crj200':    { pilot: 1, coPilot: 1, flightAttendant: 2 },
+    'erj145':    { pilot: 1, coPilot: 1, flightAttendant: 2 },
+    'crj700':    { pilot: 1, coPilot: 1, flightAttendant: 3 },
+    'e175':      { pilot: 1, coPilot: 1, flightAttendant: 3 },
+    '737-700':   { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 4 },
+    '737-800':   { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 5 },
+    'a319':      { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 4 },
+    'a320':      { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 5 },
+    'a321':      { pilot: 1, coPilot: 1, flightEngineer: 1, flightAttendant: 6 },
+    '767-300':   { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 6, dispatcher: 1 },
+    '787-8':     { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 7, dispatcher: 1 },
+    'a330-200':  { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 7, dispatcher: 1 },
+    'a350-900':  { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 8, dispatcher: 1 },
+    '777-300er': { pilot: 2, coPilot: 1, flightEngineer: 1, flightAttendant: 9, dispatcher: 1 },
+};
+
+export const MAX_FLIGHT_HOURS = {
+    'crj200':    10,
+    'erj145':    10,
+    'crj700':    10,
+    'e175':      10,
+    '737-700':   13,
+    '737-800':   14,
+    'a319':      13,
+    'a320':      14,
+    'a321':      14,
+    '767-300':   16,
+    '787-8':     16,
+    'a330-200':  16,
+    'a350-900':  16,
+    '777-300er': 16,
+};
