@@ -42,6 +42,12 @@ export function formatMoney(amount) {
     return currencySymbol + amount.toFixed(0);
 }
 
+const CS_PASSENGER_RATIO = 5000;
+
+function calculateRequiredCSStaff(monthlyPassengers) {
+    return Math.ceil(monthlyPassengers / CS_PASSENGER_RATIO);
+}
+
 function haversineDistance(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -635,6 +641,22 @@ export function processDay(state) {
         totalPassengers += passengers;
     }
     
+    const csStaffCount = state.staff.filter(s => s.role === 'Customer Service').length;
+    const monthlyPassengers = totalPassengers * 30;
+    const requiredCS = calculateRequiredCSStaff(monthlyPassengers);
+
+    if (csStaffCount === 0 && monthlyPassengers > 0) {
+        totalRevenue = 0;
+        state.airline.reputation = Math.max(0, state.airline.reputation - 0.1);
+        if (state.day === 1) {
+            addNews(state, 'No Customer Service staff hired - all revenue has been blocked! Hire CS staff immediately.', 'bad');
+        }
+    } else if (csStaffCount > 0 && csStaffCount < requiredCS && monthlyPassengers > 0) {
+        const ratio = csStaffCount / requiredCS;
+        const penalty = (1 - ratio) * 0.05;
+        state.airline.reputation = Math.max(0, state.airline.reputation - penalty);
+    }
+
     const dailyStaffExpense = state.staff.reduce((sum, s) => sum + s.salary, 0) / 30;
     totalExpenses += dailyStaffExpense;
     
@@ -862,4 +884,4 @@ export async function deleteSave() {
     } catch (e) {}
 }
 
-export { haversineDistance };
+export { haversineDistance, calculateRequiredCSStaff, CS_PASSENGER_RATIO };

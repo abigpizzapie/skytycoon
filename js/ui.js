@@ -8,7 +8,8 @@ import {
     checkStaffRequirements, getAircraftStaff,
     getAircraftCapacityInfo,
     processDay, saveGame, loadGame, deleteSave,
-    formatMoney, haversineDistance
+    formatMoney, haversineDistance,
+    calculateRequiredCSStaff, CS_PASSENGER_RATIO
 } from './engine.js';
 
 let state = null;
@@ -461,7 +462,30 @@ function showHireStaffModal() {
     const roles = ['Pilot', 'Co-Pilot', 'Flight Engineer', 'Flight Attendant', 'Ground Crew', 'Maintenance Tech', 'Dispatcher', 'Customer Service'];
     const salaries = [12000, 9000, 8000, 4500, 3500, 5500, 6500, 3200];
     
-    let html = '<div style="display: grid; gap: 8px;">';
+    const csStaffCount = state.staff.filter(s => s.role === 'Customer Service').length;
+    const monthlyPassengers = state.routes.reduce((sum, r) => sum + (r.monthlyPassengers || 0), 0);
+    const requiredCS = calculateRequiredCSStaff(monthlyPassengers);
+    
+    let html = '';
+    
+    if (monthlyPassengers > 0) {
+        const csColor = csStaffCount === 0 ? 'var(--red)' : csStaffCount < requiredCS ? 'var(--yellow)' : 'var(--green)';
+        const csStatus = csStaffCount === 0 
+            ? '<span style="color: var(--red)">No CS staff hired - Revenue blocked!</span>'
+            : csStaffCount < requiredCS
+            ? `<span style="color: var(--yellow)">Understaffed: ${csStaffCount}/${requiredCS} needed</span>`
+            : `<span style="color: var(--green)">Adequate: ${csStaffCount}/${requiredCS}</span>`;
+        html += `<div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; margin-bottom: 16px; border-left: 3px solid ${csColor};">
+            <div style="font-weight: 600; margin-bottom: 4px;">Customer Service Requirement</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px">
+                Required: 1 CS staff per ${CS_PASSENGER_RATIO.toLocaleString()} monthly passengers
+            </div>
+            <div style="font-size: 13px">Current: ${csStatus}</div>
+            ${csStaffCount === 0 ? '<div style="font-size: 12px; color: var(--red); margin-top: 4px">Hire at least 1 CS staff to generate revenue!</div>' : ''}
+        </div>`;
+    }
+    
+    html += '<div style="display: grid; gap: 8px;">';
     roles.forEach((role, i) => {
         html += `
             <div class="market-card">
@@ -517,6 +541,23 @@ function renderDashboard() {
     document.getElementById('dash-routes').textContent = state.routes.length;
     document.getElementById('dash-staff').textContent = state.staff.length;
     document.getElementById('dash-hub').textContent = state.airline.hub;
+    
+    const csStaffCount = state.staff.filter(s => s.role === 'Customer Service').length;
+    const monthlyPassengers = state.routes.reduce((sum, r) => sum + (r.monthlyPassengers || 0), 0);
+    const requiredCS = calculateRequiredCSStaff(monthlyPassengers);
+    const csEl = document.getElementById('dash-cs-staff');
+    if (csEl) {
+        if (csStaffCount === 0 && monthlyPassengers > 0) {
+            csEl.textContent = `0/${requiredCS} (NO REVENUE)`;
+            csEl.style.color = 'var(--red)';
+        } else if (csStaffCount < requiredCS) {
+            csEl.textContent = `${csStaffCount}/${requiredCS}`;
+            csEl.style.color = 'var(--yellow)';
+        } else {
+            csEl.textContent = `${csStaffCount}/${requiredCS}`;
+            csEl.style.color = 'var(--green)';
+        }
+    }
     
     // Calculate monthly P&L
     let totalRevenue = 0;
@@ -836,17 +877,36 @@ window._repayLoan = () => {
 function renderStaff() {
     const container = document.getElementById('staff-list');
     
+    const csStaffCount = state.staff.filter(s => s.role === 'Customer Service').length;
+    const monthlyPassengers = state.routes.reduce((sum, r) => sum + (r.monthlyPassengers || 0), 0);
+    const requiredCS = calculateRequiredCSStaff(monthlyPassengers);
+    
+    let csBanner = '';
+    if (monthlyPassengers > 0) {
+        const csColor = csStaffCount === 0 ? 'var(--red)' : csStaffCount < requiredCS ? 'var(--yellow)' : 'var(--green)';
+        const csStatus = csStaffCount === 0
+            ? 'No CS staff - Revenue blocked!'
+            : csStaffCount < requiredCS
+            ? `Understaffed: ${csStaffCount}/${requiredCS} CS staff needed for ${monthlyPassengers.toLocaleString()} monthly passengers`
+            : `Adequate: ${csStaffCount}/${requiredCS} CS staff for ${monthlyPassengers.toLocaleString()} monthly passengers`;
+        csBanner = `<div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; margin-bottom: 16px; border-left: 3px solid ${csColor};">
+            <div style="font-size: 13px; font-weight: 600;">Customer Service Status: <span style="color: ${csColor}">${csStatus}</span></div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px">1 CS staff required per ${CS_PASSENGER_RATIO.toLocaleString()} monthly passengers</div>
+        </div>`;
+    }
+    
     if (state.staff.length === 0) {
-        container.innerHTML = `
+        container.innerHTML = csBanner + `
             <div class="empty-state">
                 <div class="icon">👥</div>
                 <p>No staff hired yet. Hire crew and ground staff to operate your airline!</p>
+                ${monthlyPassengers > 0 && csStaffCount === 0 ? '<p style="color: var(--red); font-weight: 600">Hire at least 1 Customer Service staff to generate revenue!</p>' : ''}
                 <button class="btn btn-primary" onclick="document.getElementById('btn-hire-staff').click()">Hire Staff</button>
             </div>`;
         return;
     }
     
-    container.innerHTML = state.staff.map(staff => {
+    container.innerHTML = csBanner + state.staff.map(staff => {
         const ac = staff.assignedAircraft ? state.aircraft.find(a => a.id === staff.assignedAircraft) : null;
         const acText = ac ? ac.name : 'Unassigned';
         const acColor = ac ? 'var(--green)' : 'var(--text-muted)';
