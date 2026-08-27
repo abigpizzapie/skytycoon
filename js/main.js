@@ -28,6 +28,17 @@ function migrateState(data) {
             }
         }
     }
+    if (data.staff) {
+        for (const s of data.staff) {
+            if (s.assignedRoute && !s.assignedAircraft) {
+                const route = data.routes?.find(r => r.id === s.assignedRoute);
+                s.assignedAircraft = route ? route.aircraftId : null;
+                delete s.assignedRoute;
+            } else if (!s.assignedAircraft) {
+                s.assignedAircraft = null;
+            }
+        }
+    }
     if (data.routes) {
         for (const route of data.routes) {
             if (route.roundTripTime === undefined) {
@@ -55,8 +66,8 @@ function migrateState(data) {
                     }
                 }
             }
-            if (route.staffAssigned === undefined) {
-                route.staffAssigned = [];
+            if (route.staffAssigned !== undefined) {
+                delete route.staffAssigned;
             }
         }
     }

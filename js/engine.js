@@ -7,6 +7,26 @@ function genId() {
     return nextId++;
 }
 
+function restoreNextId(state) {
+    let maxId = 0;
+    const allIds = [
+        ...(state.aircraft || []).map(a => a.id),
+        ...(state.routes || []).map(r => r.id),
+        ...(state.staff || []).map(s => s.id),
+        ...(state.events || []).map(e => e.id),
+        ...(state.news || []).map(n => n.id),
+        ...(state.transactions || []).map(t => t.id)
+    ];
+    for (const id of allIds) {
+        const match = id.match(/_(\d+)$/);
+        if (match) {
+            const num = parseInt(match[1]);
+            if (num > maxId) maxId = num;
+        }
+    }
+    nextId = maxId + 1;
+}
+
 let currencySymbol = '$';
 let currencyCode = 'USD';
 
@@ -340,12 +360,6 @@ export function closeRoute(state, routeId) {
         }
     }
     
-    for (const staff of state.staff) {
-        if (staff.assignedRoute === routeId) {
-            staff.assignedRoute = null;
-        }
-    }
-    
     state.routes.splice(idx, 1);
     addNews(state, `Closed route ${route.origin}-${route.destination}`, 'neutral');
     
@@ -454,8 +468,8 @@ export function fireStaff(state, staffId) {
     if (idx === -1) return { success: false, message: 'Staff not found' };
     
     const staff = state.staff[idx];
-    if (staff.assignedRoute) {
-        return { success: false, message: 'Cannot fire staff assigned to a route. Unassign them first.' };
+    if (staff.assignedAircraft) {
+        return { success: false, message: 'Cannot fire staff assigned to an aircraft. Unassign them first.' };
     }
     state.staff.splice(idx, 1);
     
@@ -465,11 +479,11 @@ export function fireStaff(state, staffId) {
 }
 
 export function getAvailableStaff(state, role) {
-    return state.staff.filter(s => s.role === role && !s.assignedRoute);
+    return state.staff.filter(s => s.role === role && !s.assignedAircraft);
 }
 
-export function checkStaffRequirements(state, route) {
-    const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
+export function checkStaffRequirements(state, aircraftId) {
+    const aircraft = state.aircraft.find(a => a.id === aircraftId);
     if (!aircraft) return { met: false, missing: {}, assigned: 0, required: 0 };
     
     const requirements = STAFF_REQUIREMENTS[aircraft.typeId] || {};
@@ -479,7 +493,7 @@ export function checkStaffRequirements(state, route) {
     
     for (const [role, count] of Object.entries(requirements)) {
         const assignedCount = state.staff.filter(s => 
-            s.assignedRoute === route.id && s.role === role
+            s.assignedAircraft === aircraftId && s.role === role
         ).length;
         totalRequired += count;
         totalAssigned += assignedCount;
@@ -496,47 +510,36 @@ export function checkStaffRequirements(state, route) {
     };
 }
 
-export function getRouteStaff(state, routeId) {
-    return state.staff.filter(s => s.assignedRoute === routeId);
+export function getAircraftStaff(state, aircraftId) {
+    return state.staff.filter(s => s.assignedAircraft === aircraftId);
 }
 
-export function assignStaffToRoute(state, routeId, staffIds) {
-    const route = state.routes.find(r => r.id === routeId);
-    if (!route) return { success: false, message: 'Route not found' };
-    
-    const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
+export function assignStaffToAircraft(state, aircraftId, staffIds) {
+    const aircraft = state.aircraft.find(a => a.id === aircraftId);
     if (!aircraft) return { success: false, message: 'Aircraft not found' };
     
     for (const staffId of staffIds) {
         const staff = state.staff.find(s => s.id === staffId);
         if (!staff) return { success: false, message: `Staff ${staffId} not found` };
-        if (staff.assignedRoute && staff.assignedRoute !== routeId) {
-            return { success: false, message: `${staff.name} is already assigned to another route` };
+        if (staff.assignedAircraft && staff.assignedAircraft !== aircraftId) {
+            return { success: false, message: `${staff.name} is already assigned to another aircraft` };
         }
     }
     
     for (const staffId of staffIds) {
         const staff = state.staff.find(s => s.id === staffId);
-        if (staff) staff.assignedRoute = routeId;
+        if (staff) staff.assignedAircraft = aircraftId;
     }
-    
-    route.staffAssigned = staffIds;
     
     return { success: true };
 }
 
-export function unassignStaffFromRoute(state, routeId) {
-    const route = state.routes.find(r => r.id === routeId);
-    if (!route) return { success: false, message: 'Route not found' };
-    
+export function unassignStaffFromAircraft(state, aircraftId) {
     for (const staff of state.staff) {
-        if (staff.assignedRoute === routeId) {
-            staff.assignedRoute = null;
+        if (staff.assignedAircraft === aircraftId) {
+            staff.assignedAircraft = null;
         }
     }
-    
-    route.staffAssigned = [];
-    
     return { success: true };
 }
 
@@ -590,8 +593,8 @@ export function processMonth(state) {
         const template = AIRCRAFT_DATA.find(a => a.id === aircraft?.typeId);
         if (!aircraft || !template) continue;
         
-        const routeStaff = state.staff.filter(s => s.assignedRoute === route.id);
-        if (routeStaff.length === 0) continue;
+        const aircraftStaff = state.staff.filter(s => s.assignedAircraft === aircraft.id);
+        if (aircraftStaff.length === 0) continue;
         
         const monthlyFlights = route.flightsPerDay * 26;
         
@@ -805,6 +808,7 @@ export async function loadGame() {
                     currencySymbol = data.airline.currency.symbol;
                     currencyCode = data.airline.currency.code;
                 }
+                restoreNextId(data);
                 try { localStorage.setItem('skytycoon_save', JSON.stringify(data)); } catch (e) {}
                 return data;
             }
@@ -820,6 +824,7 @@ export async function loadGame() {
             currencySymbol = parsed.airline.currency.symbol;
             currencyCode = parsed.airline.currency.code;
         }
+        restoreNextId(parsed);
         return parsed;
     } catch (e) {
         return null;

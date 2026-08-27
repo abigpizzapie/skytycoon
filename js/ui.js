@@ -4,8 +4,9 @@ import {
     buyAircraft, leaseAircraft, sellAircraft,
     createRoute, closeRoute, adjustTicketPrice, adjustFlightsPerDay, assignAircraft,
     hireStaff, fireStaff, takeLoan, repayLoan,
-    assignStaffToRoute, unassignStaffFromRoute, getAvailableStaff,
-    checkStaffRequirements, getRouteStaff, getAircraftCapacityInfo,
+    assignStaffToAircraft, unassignStaffFromAircraft, getAvailableStaff,
+    checkStaffRequirements, getAircraftStaff,
+    getAircraftCapacityInfo,
     processMonth, saveGame, loadGame, deleteSave,
     formatMoney, haversineDistance
 } from './engine.js';
@@ -301,28 +302,25 @@ function updateRoutePreview() {
     // This will be handled inline
 }
 
-function showStaffAssignmentModal(routeId) {
-    const route = state.routes.find(r => r.id === routeId);
-    if (!route) return;
-    
-    const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
+function showAircraftStaffModal(aircraftId) {
+    const aircraft = state.aircraft.find(a => a.id === aircraftId);
     if (!aircraft) return;
     
     const requirements = STAFF_REQUIREMENTS[aircraft.typeId] || {};
-    const staffCheck = checkStaffRequirements(state, route);
+    const staffCheck = checkStaffRequirements(state, aircraftId);
     
     let html = `
         <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
-            <div style="font-weight: 600; margin-bottom: 8px">${route.origin} → ${route.destination}</div>
+            <div style="font-weight: 600; margin-bottom: 8px">${aircraft.name}</div>
             <div style="font-size: 13px; color: var(--text-muted)">
-                ${aircraft.name} • ${route.roundTripTime}h round trip • ${route.flightsPerDay} flights/day
+                ${aircraft.category} • ${(aircraft.assignedRoutes || []).length} route(s)
             </div>
         </div>
         <div style="margin-bottom: 16px;">
             <div style="font-weight: 600; margin-bottom: 8px">Staff Requirements</div>`;
     
     for (const [role, count] of Object.entries(requirements)) {
-        const assigned = state.staff.filter(s => s.assignedRoute === routeId && s.role === role).length;
+        const assigned = state.staff.filter(s => s.assignedAircraft === aircraftId && s.role === role).length;
         const available = getAvailableStaff(state, role).length;
         const color = assigned >= count ? 'var(--green)' : 'var(--red)';
         
@@ -337,15 +335,15 @@ function showStaffAssignmentModal(routeId) {
     html += `</div>`;
     
     const totalStaff = state.staff.length;
-    const unassignedStaff = state.staff.filter(s => !s.assignedRoute).length;
+    const unassignedStaff = state.staff.filter(s => !s.assignedAircraft).length;
     
     if (totalStaff === 0) {
         html += `<div style="padding: 16px; text-align: center; color: var(--text-muted);">
             <p>No staff hired yet. Go to the <strong>Staff</strong> tab to hire crew first.</p>
         </div>`;
-    } else if (unassignedStaff === 0) {
+    } else if (unassignedStaff === 0 && !staffCheck.met) {
         html += `<div style="padding: 16px; text-align: center; color: var(--text-muted);">
-            <p>All staff are assigned to other routes. Hire more staff or unassign from other routes.</p>
+            <p>All staff are assigned to other aircraft. Hire more staff or unassign from other aircraft.</p>
         </div>`;
     } else {
         html += `<div style="margin-bottom: 12px;">
@@ -353,7 +351,7 @@ function showStaffAssignmentModal(routeId) {
         
         for (const [role, count] of Object.entries(requirements)) {
             const available = getAvailableStaff(state, role);
-            const alreadyAssigned = state.staff.filter(s => s.assignedRoute === routeId && s.role === role).length;
+            const alreadyAssigned = state.staff.filter(s => s.assignedAircraft === aircraftId && s.role === role).length;
             const stillNeeded = count - alreadyAssigned;
             
             if (available.length === 0) {
@@ -378,13 +376,13 @@ function showStaffAssignmentModal(routeId) {
         html += `</div>`;
     }
     
-    showModal('Assign Staff to Route', html, `
-        <button class="btn" onclick="window._skipStaffAssignment('${routeId}')">Close</button>
-        ${unassignedStaff > 0 ? `<button class="btn btn-primary" onclick="window._assignStaffToRoute('${routeId}')">Assign Staff</button>` : ''}
+    showModal('Assign Staff to Aircraft', html, `
+        <button class="btn" onclick="window._closeModal()">Close</button>
+        ${unassignedStaff > 0 ? `<button class="btn btn-primary" onclick="window._assignStaffToAircraft('${aircraftId}')">Assign Staff</button>` : ''}
     `);
 }
 
-window._assignStaffToRoute = (routeId) => {
+window._assignStaffToAircraft = (aircraftId) => {
     const checkboxes = document.querySelectorAll('.staff-checkbox:checked');
     const staffIds = Array.from(checkboxes).map(cb => cb.value);
     
@@ -393,7 +391,7 @@ window._assignStaffToRoute = (routeId) => {
         return;
     }
     
-    const result = assignStaffToRoute(state, routeId, staffIds);
+    const result = assignStaffToAircraft(state, aircraftId, staffIds);
     if (!result.success) {
         alert(result.message);
     } else {
@@ -404,20 +402,15 @@ window._assignStaffToRoute = (routeId) => {
     }
 };
 
-window._skipStaffAssignment = (routeId) => {
-    _closeModal();
-    renderCurrentScreen();
-    updateHeaderStats();
+window._showAircraftStaff = (aircraftId) => {
+    showAircraftStaffModal(aircraftId);
 };
 
-window._showStaffAssignment = (routeId) => {
-    showStaffAssignmentModal(routeId);
-};
-
-window._unassignStaff = (routeId) => {
-    if (!confirm('Release all staff from this route?')) return;
-    const result = unassignStaffFromRoute(state, routeId);
+window._unassignAircraftStaff = (aircraftId) => {
+    if (!confirm('Release all staff from this aircraft?')) return;
+    const result = unassignStaffFromAircraft(state, aircraftId);
     if (result.success) {
+        saveGame(state);
         renderCurrentScreen();
         updateHeaderStats();
     }
@@ -642,6 +635,7 @@ function renderHangar() {
                 ${routesHtml}
                 <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
                     <span class="aircraft-status ${statusClass}">${statusText}</span>
+                    <button class="btn btn-sm" onclick="window._showAircraftStaff('${ac.id}')">Staff</button>
                     ${!ac.leased ? `<button class="btn btn-sm btn-danger" onclick="window._sellAircraft('${ac.id}')">Sell</button>` : ''}
                 </div>
             </div>`;
@@ -681,7 +675,7 @@ function renderRoutes() {
         const dest = getAirport(route.destination);
         const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
         
-        const staffCheck = checkStaffRequirements(state, route);
+        const staffCheck = aircraft ? checkStaffRequirements(state, aircraft.id) : { met: false, assigned: 0, required: 0 };
         const staffStatus = staffCheck.met 
             ? '<span style="color: var(--green)">Staffed</span>' 
             : `<span style="color: var(--red)">Understaffed (${staffCheck.assigned}/${staffCheck.required})</span>`;
@@ -707,13 +701,12 @@ function renderRoutes() {
                     <div class="metric"><div class="label">Load Factor</div><div class="value" style="color: ${route.loadFactor > 70 ? 'var(--green)' : route.loadFactor > 40 ? 'var(--yellow)' : 'var(--red)'}">${route.loadFactor}%</div></div>
                     <div class="metric"><div class="label">Monthly Passengers</div><div class="value">${route.monthlyPassengers.toLocaleString()}</div></div>
                     <div class="metric"><div class="label">Monthly Revenue</div><div class="value" style="color: var(--green)">${formatMoney(route.monthlyRevenue)}</div></div>
-                    <div class="metric"><div class="label">Staff</div><div class="value">${staffStatus}</div></div>
+                    <div class="metric"><div class="label">Aircraft Staff</div><div class="value">${staffStatus}</div></div>
                     <div class="metric"><div class="label">Flights/Day</div><div class="value">${route.flightsPerDay}/${route.maxFlightsPerDay || '?'}</div></div>
                 </div>
                 <div class="route-actions">
                     <button class="btn btn-sm" onclick="window._adjustPrice('${route.id}')">Price</button>
                     <button class="btn btn-sm" onclick="window._adjustFlights('${route.id}')">Flights</button>
-                    <button class="btn btn-sm" onclick="window._showStaffAssignment('${route.id}')">Staff</button>
                     <button class="btn btn-sm btn-danger" onclick="window._closeRoute('${route.id}')">Close</button>
                 </div>
             </div>`;
@@ -847,9 +840,9 @@ function renderStaff() {
     }
     
     container.innerHTML = state.staff.map(staff => {
-        const route = staff.assignedRoute ? state.routes.find(r => r.id === staff.assignedRoute) : null;
-        const routeText = route ? `${route.origin}-${route.destination}` : 'Unassigned';
-        const routeColor = route ? 'var(--green)' : 'var(--text-muted)';
+        const ac = staff.assignedAircraft ? state.aircraft.find(a => a.id === staff.assignedAircraft) : null;
+        const acText = ac ? ac.name : 'Unassigned';
+        const acColor = ac ? 'var(--green)' : 'var(--text-muted)';
         
         return `
             <div class="staff-card">
@@ -858,7 +851,7 @@ function renderStaff() {
                     <div>
                         <div class="staff-name">${staff.name}</div>
                         <div class="staff-role">${staff.role} • Hired ${staff.hired}</div>
-                        <div style="font-size: 12px; color: ${routeColor}">${routeText}</div>
+                        <div style="font-size: 12px; color: ${acColor}">${acText}</div>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 16px;">
@@ -869,7 +862,7 @@ function renderStaff() {
                         </div>
                     </div>
                     <span class="staff-salary">${formatMoney(staff.salary)}/mo</span>
-                    <button class="btn btn-sm btn-danger" onclick="window._fireStaff('${staff.id}')" ${staff.assignedRoute ? 'disabled title="Unassign from route first"' : ''}>Fire</button>
+                    <button class="btn btn-sm btn-danger" onclick="window._fireStaff('${staff.id}')" ${staff.assignedAircraft ? 'disabled title="Unassign from aircraft first"' : ''}>Fire</button>
                 </div>
             </div>`;
     }).join('');
