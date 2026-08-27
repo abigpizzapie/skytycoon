@@ -271,16 +271,16 @@ install_container() {
 
 # ── Deploy game inside container ──────────────────────────
 deploy_game() {
-    info "Installing nginx..."
+    info "Installing nginx and PHP..."
     pct exec "$CTID" -- bash -c "
         apt-get update -qq
-        apt-get install -y -qq nginx
+        apt-get install -y -qq nginx php-fpm
     "
-    log "Nginx installed"
+    log "Nginx and PHP installed"
 
     info "Deploying game files..."
 
-    pct exec "$CTID" -- mkdir -p "$INSTALL_DIR/css" "$INSTALL_DIR/js"
+    pct exec "$CTID" -- mkdir -p "$INSTALL_DIR/css" "$INSTALL_DIR/js" "$INSTALL_DIR/api" "$INSTALL_DIR/api/saves"
     pct push "$CTID" "$GAME_DIR/index.html" "$INSTALL_DIR/index.html"
     pct push "$CTID" "$GAME_DIR/css/style.css" "$INSTALL_DIR/css/style.css"
     pct push "$CTID" "$GAME_DIR/js/aircraft.js" "$INSTALL_DIR/js/aircraft.js"
@@ -288,6 +288,14 @@ deploy_game() {
     pct push "$CTID" "$GAME_DIR/js/engine.js" "$INSTALL_DIR/js/engine.js"
     pct push "$CTID" "$GAME_DIR/js/ui.js" "$INSTALL_DIR/js/ui.js"
     pct push "$CTID" "$GAME_DIR/js/main.js" "$INSTALL_DIR/js/main.js"
+    pct push "$CTID" "$GAME_DIR/api/save.php" "$INSTALL_DIR/api/save.php"
+
+    # Find PHP-FPM socket path
+    PHP_SOCK=$(pct exec "$CTID" -- bash -c 'ls /run/php/php*-fpm.sock 2>/dev/null | head -1')
+    if [[ -z "$PHP_SOCK" ]]; then
+        PHP_SOCK="/run/php/php8.2-fpm.sock"
+    fi
+    info "PHP socket: $PHP_SOCK"
 
     info "Configuring nginx..."
     pct exec "$CTID" -- bash -c 'cat > /etc/nginx/sites-available/skytycoon << NGINXEOF
@@ -306,13 +314,20 @@ server {
         add_header Content-Type "application/javascript";
         expires 1h;
     }
+
+    location /api/ {
+        try_files $uri $uri/ =404;
+        fastcgi_pass unix:'"${PHP_SOCK}"';
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
 }
 NGINXEOF
 
         ln -sf /etc/nginx/sites-available/skytycoon /etc/nginx/sites-enabled/
         rm -f /etc/nginx/sites-enabled/default
-        systemctl enable -q nginx
-        systemctl restart nginx
+        systemctl enable -q nginx php*-fpm
+        systemctl restart nginx php*-fpm
     '
 
     log "Game deployed and nginx configured"

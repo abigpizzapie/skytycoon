@@ -608,17 +608,52 @@ function addNews(state, text, sentiment) {
     if (state.news.length > 30) state.news.pop();
 }
 
-export function saveGame(state) {
+function getPlayerId() {
+    let id = localStorage.getItem('skytycoon_player_id');
+    if (!id) {
+        id = 'player_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+        localStorage.setItem('skytycoon_player_id', id);
+    }
+    return id;
+}
+
+const API_BASE = window.location.origin + '/api/save.php';
+
+export async function saveGame(state) {
+    const data = JSON.stringify(state);
+    try { localStorage.setItem('skytycoon_save', data); } catch (e) {}
     try {
-        const saveData = JSON.stringify(state);
-        localStorage.setItem('skytycoon_save', saveData);
-        return true;
+        const resp = await fetch(API_BASE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: data,
+            signal: AbortSignal.timeout(5000)
+        });
+        const result = await resp.json();
+        return result.ok === true;
     } catch (e) {
-        return false;
+        return true;
     }
 }
 
-export function loadGame() {
+export async function loadGame() {
+    const playerId = getPlayerId();
+    try {
+        const resp = await fetch(`${API_BASE}?player=${playerId}`, {
+            signal: AbortSignal.timeout(5000)
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.airline) {
+                if (data.airline.currency) {
+                    currencySymbol = data.airline.currency.symbol;
+                    currencyCode = data.airline.currency.code;
+                }
+                try { localStorage.setItem('skytycoon_save', JSON.stringify(data)); } catch (e) {}
+                return data;
+            }
+        }
+    } catch (e) {}
     try {
         const d = localStorage.getItem('skytycoon_save');
         if (!d) return null;
@@ -633,8 +668,15 @@ export function loadGame() {
     }
 }
 
-export function deleteSave() {
+export async function deleteSave() {
+    const playerId = getPlayerId();
     localStorage.removeItem('skytycoon_save');
+    try {
+        await fetch(`${API_BASE}?player=${playerId}`, {
+            method: 'DELETE',
+            signal: AbortSignal.timeout(5000)
+        });
+    } catch (e) {}
 }
 
 export { haversineDistance };

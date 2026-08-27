@@ -16,7 +16,8 @@ update_os
 msg_info "Installing Dependencies"
 $STD apt-get install -y \
   nginx \
-  git
+  git \
+  php-fpm
 msg_ok "Installed Dependencies"
 
 msg_info "Installing ${APP}"

@@ -17,8 +17,8 @@ const CURRENCIES = [
 
 let state = null;
 
-function init() {
-    const savedGame = loadGame();
+async function init() {
+    const savedGame = await loadGame();
     
     if (savedGame) {
         state = savedGame;

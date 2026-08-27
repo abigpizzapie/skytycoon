@@ -34,9 +34,9 @@ function setupNavigation() {
 }
 
 function setupNewGame() {
-    document.getElementById('btn-new-game')?.addEventListener('click', () => {
+    document.getElementById('btn-new-game')?.addEventListener('click', async () => {
         if (!confirm('Start a new game? Your current progress will be lost unless you have a save.')) return;
-        localStorage.removeItem('skytycoon_save');
+        await deleteSave();
         location.reload();
     });
 }
