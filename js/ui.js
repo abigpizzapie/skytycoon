@@ -7,7 +7,7 @@ import {
     assignStaffToAircraft, unassignStaffFromAircraft, getAvailableStaff,
     checkStaffRequirements, getAircraftStaff,
     getAircraftCapacityInfo,
-    processMonth, saveGame, loadGame, deleteSave,
+    processDay, saveGame, loadGame, deleteSave,
     formatMoney, haversineDistance
 } from './engine.js';
 
@@ -75,7 +75,7 @@ function renderAll() {
 
 function updateDate() {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    document.getElementById('game-date').textContent = `${months[state.month - 1]} ${state.year}`;
+    document.getElementById('game-date').textContent = `${state.day} ${months[state.month - 1]} ${state.year}`;
 }
 
 function updateHeaderStats() {
@@ -111,7 +111,7 @@ function setSpeed(speed) {
 }
 
 function processTick() {
-    const result = processMonth(state);
+    const result = processDay(state);
     updateDate();
     updateHeaderStats();
     
@@ -128,8 +128,10 @@ function processTick() {
     
     renderCurrentScreen();
     
-    // Auto-save every tick
-    saveGame(state);
+    // Auto-save every 5 days
+    if (state.stats.daysPlayed % 5 === 0) {
+        saveGame(state);
+    }
 }
 
 function setupBuyAircraft() {

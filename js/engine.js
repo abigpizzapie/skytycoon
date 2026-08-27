@@ -157,6 +157,7 @@ export function createGameState(airlineName, hubCode, currency = { symbol: '$', 
         stats: {
             totalPassengers: 0,
             totalFlights: 0,
+            daysPlayed: 0,
             monthsPlayed: 0
         }
     };
@@ -595,7 +596,7 @@ export function repayLoan(state, amount) {
     return { success: true, repaid: repayAmount };
 }
 
-export function processMonth(state) {
+export function processDay(state) {
     let totalRevenue = 0;
     let totalExpenses = 0;
     let totalPassengers = 0;
@@ -608,38 +609,38 @@ export function processMonth(state) {
         const aircraftStaff = state.staff.filter(s => s.assignedAircraft === aircraft.id);
         if (aircraftStaff.length === 0) continue;
         
-        const monthlyFlights = route.flightsPerDay * 26;
+        const dailyFlights = route.flightsPerDay;
         
         const demand = calculateDemand(route.origin, route.destination, route.reputation, route.ticketPrice / route.distance);
-        const loadFactor = Math.min(0.95, Math.max(0.3, demand / (aircraft.capacity * monthlyFlights)));
+        const loadFactor = Math.min(0.95, Math.max(0.3, demand / (aircraft.capacity * dailyFlights * 30)));
         
-        const passengers = Math.round(monthlyFlights * aircraft.capacity * loadFactor);
+        const passengers = Math.round(dailyFlights * aircraft.capacity * loadFactor);
         const revenue = Math.round(passengers * route.ticketPrice);
         
-        const fuelCost = template.fuelBurn * 3.2 * 1000 * monthlyFlights * (route.distance / aircraft.speed);
-        const maintenanceCost = template.maintenanceCost;
+        const fuelCost = template.fuelBurn * 3.2 * 1000 * dailyFlights * (route.distance / aircraft.speed);
+        const maintenanceCost = template.maintenanceCost / 30;
         const routeExpenses = fuelCost + maintenanceCost;
         
-        route.monthlyRevenue = revenue;
-        route.monthlyExpenses = Math.round(routeExpenses);
-        route.monthlyProfit = revenue - Math.round(routeExpenses);
-        route.monthlyPassengers = passengers;
-        route.monthlyFlights = monthlyFlights;
+        route.monthlyRevenue = Math.round(revenue * 30);
+        route.monthlyExpenses = Math.round(routeExpenses * 30);
+        route.monthlyProfit = Math.round((revenue - routeExpenses) * 30);
+        route.monthlyPassengers = passengers * 30;
+        route.monthlyFlights = dailyFlights * 30;
         route.loadFactor = Math.round(loadFactor * 100);
         
-        aircraft.totalFlights += monthlyFlights;
+        aircraft.totalFlights += dailyFlights;
         
         totalRevenue += revenue;
         totalExpenses += routeExpenses;
         totalPassengers += passengers;
     }
     
-    const staffExpense = state.staff.reduce((sum, s) => sum + s.salary, 0);
-    totalExpenses += staffExpense;
+    const dailyStaffExpense = state.staff.reduce((sum, s) => sum + s.salary, 0) / 30;
+    totalExpenses += dailyStaffExpense;
     
     for (const aircraft of state.aircraft) {
         if (aircraft.leased && aircraft.leasePrice) {
-            totalExpenses += aircraft.leasePrice;
+            totalExpenses += aircraft.leasePrice / 30;
         }
     }
     
@@ -653,39 +654,43 @@ export function processMonth(state) {
         : 50;
     
     if (avgLoadFactor > 70) {
-        state.airline.reputation = Math.min(100, state.airline.reputation + 0.5);
+        state.airline.reputation = Math.min(100, state.airline.reputation + 0.017);
     } else if (avgLoadFactor < 40) {
-        state.airline.reputation = Math.max(0, state.airline.reputation - 0.5);
+        state.airline.reputation = Math.max(0, state.airline.reputation - 0.017);
     }
     
     state.stats.totalPassengers += totalPassengers;
-    state.stats.monthsPlayed++;
+    state.stats.daysPlayed = (state.stats.daysPlayed || 0) + 1;
     
     for (const aircraft of state.aircraft) {
         aircraft.age++;
-        if (aircraft.age % 12 === 0) {
+        if (aircraft.age % 360 === 0) {
             aircraft.condition = Math.max(10, aircraft.condition - 2);
         }
     }
     
     if (state.finances.debt > 0) {
-        const interest = Math.round(state.finances.debt * 0.005);
+        const interest = Math.round(state.finances.debt * 0.05 / 365);
         state.finances.cash -= interest;
         state.finances.totalExpenses += interest;
-        addTransaction(state, 'Loan interest payment', -interest, 'expense');
+        addTransaction(state, 'Loan interest', -interest, 'expense');
     }
     
-    addTransaction(state, 'Monthly revenue', totalRevenue, 'revenue');
-    addTransaction(state, 'Monthly expenses', -totalExpenses, 'expense');
+    addTransaction(state, 'Daily revenue', totalRevenue, 'revenue');
+    addTransaction(state, 'Daily expenses', -totalExpenses, 'expense');
     
     generateEvents(state);
     
     updateAICompetitors(state);
     
-    state.month++;
-    if (state.month > 12) {
-        state.month = 1;
-        state.year++;
+    state.day++;
+    if (state.day > 30) {
+        state.day = 1;
+        state.month++;
+        if (state.month > 12) {
+            state.month = 1;
+            state.year++;
+        }
     }
     
     return {
@@ -720,8 +725,8 @@ function generateEvents(state) {
         }}
     ];
     
-    // 30% chance of event each month
-    if (Math.random() < 0.3) {
+    // ~1% chance of event each day (roughly 30% per month)
+    if (Math.random() < 0.01) {
         const event = eventPool[Math.floor(Math.random() * eventPool.length)];
         event.effect();
         
@@ -729,9 +734,10 @@ function generateEvents(state) {
             id: generateId('event'),
             type: event.type,
             text: event.text,
-            date: `${state.month}/${state.year}`,
+            date: `${state.day}/${state.month}/${state.year}`,
             month: state.month,
-            year: state.year
+            year: state.year,
+            day: state.day
         };
         
         state.events.unshift(newEvent);

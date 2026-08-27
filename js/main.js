@@ -71,6 +71,11 @@ function migrateState(data) {
             }
         }
     }
+    if (data.stats) {
+        if (data.stats.daysPlayed === undefined) {
+            data.stats.daysPlayed = (data.stats.monthsPlayed || 0) * 30;
+        }
+    }
     return data;
 }
 
