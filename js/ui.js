@@ -2,7 +2,7 @@ import { AIRCRAFT_DATA, AIRCRAFT_CATEGORIES, STAFF_REQUIREMENTS, MAX_FLIGHT_HOUR
 import { AIRPORTS, getAirport, REGIONS } from './airports.js';
 import {
     buyAircraft, leaseAircraft, sellAircraft,
-    createRoute, closeRoute, adjustTicketPrice, assignAircraft,
+    createRoute, closeRoute, adjustTicketPrice, adjustFlightsPerDay, assignAircraft,
     hireStaff, fireStaff, takeLoan, repayLoan,
     assignStaffToRoute, unassignStaffFromRoute, getAvailableStaff,
     checkStaffRequirements, getRouteStaff, getAircraftCapacityInfo,
@@ -685,9 +685,11 @@ function renderRoutes() {
                     <div class="metric"><div class="label">Monthly Passengers</div><div class="value">${route.monthlyPassengers.toLocaleString()}</div></div>
                     <div class="metric"><div class="label">Monthly Revenue</div><div class="value" style="color: var(--green)">${formatMoney(route.monthlyRevenue)}</div></div>
                     <div class="metric"><div class="label">Staff</div><div class="value">${staffStatus}</div></div>
+                    <div class="metric"><div class="label">Flights/Day</div><div class="value">${route.flightsPerDay}/${route.maxFlightsPerDay || '?'}</div></div>
                 </div>
                 <div class="route-actions">
                     <button class="btn btn-sm" onclick="window._adjustPrice('${route.id}')">Price</button>
+                    <button class="btn btn-sm" onclick="window._adjustFlights('${route.id}')">Flights</button>
                     <button class="btn btn-sm" onclick="window._showStaffAssignment('${route.id}')">Staff</button>
                     <button class="btn btn-sm btn-danger" onclick="window._closeRoute('${route.id}')">Close</button>
                 </div>
@@ -704,6 +706,22 @@ window._adjustPrice = (routeId) => {
     
     const result = adjustTicketPrice(state, routeId, parseInt(newPrice));
     if (result.success) renderCurrentScreen();
+};
+
+window._adjustFlights = (routeId) => {
+    const route = state.routes.find(r => r.id === routeId);
+    if (!route) return;
+    
+    const max = route.maxFlightsPerDay || '?';
+    const newFlights = prompt(`Set flights per day for ${route.origin}-${route.destination}\nCurrent: ${route.flightsPerDay} (max: ${max})`, route.flightsPerDay);
+    if (newFlights === null) return;
+    
+    const result = adjustFlightsPerDay(state, routeId, parseInt(newFlights));
+    if (!result.success) {
+        alert(result.message);
+    } else {
+        renderCurrentScreen();
+    }
 };
 
 window._closeRoute = (routeId) => {

@@ -34,10 +34,25 @@ function migrateState(data) {
                 const aircraft = data.aircraft?.find(a => a.id === route.aircraftId);
                 if (aircraft) {
                     route.roundTripTime = Math.round((2 * route.distance / aircraft.speed) * 10) / 10;
-                    route.flightsPerDay = Math.max(1, Math.floor((aircraft.category === 'Widebody' ? 16 : aircraft.category === 'Narrowbody' ? 14 : 10) / route.roundTripTime));
+                    const maxH = aircraft.category === 'Widebody' ? 16 : aircraft.category === 'Narrowbody' ? 14 : 10;
+                    route.maxFlightsPerDay = Math.max(1, Math.floor(maxH / route.roundTripTime));
+                    if (!route.flightsPerDay || route.flightsPerDay > route.maxFlightsPerDay) {
+                        route.flightsPerDay = 1;
+                    }
                 } else {
                     route.roundTripTime = 4;
-                    route.flightsPerDay = 2;
+                    route.flightsPerDay = 1;
+                    route.maxFlightsPerDay = 3;
+                }
+            }
+            if (route.maxFlightsPerDay === undefined) {
+                const aircraft = data.aircraft?.find(a => a.id === route.aircraftId);
+                if (aircraft) {
+                    const maxH = aircraft.category === 'Widebody' ? 16 : aircraft.category === 'Narrowbody' ? 14 : 10;
+                    route.maxFlightsPerDay = Math.max(1, Math.floor(maxH / route.roundTripTime));
+                    if (route.flightsPerDay > route.maxFlightsPerDay) {
+                        route.flightsPerDay = 1;
+                    }
                 }
             }
             if (route.staffAssigned === undefined) {

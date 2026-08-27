@@ -278,9 +278,9 @@ export function createRoute(state, originCode, destinationCode, aircraftId) {
     
     const roundTripTime = calculateFlightTime(distance, aircraft.speed);
     const maxHours = MAX_FLIGHT_HOURS[aircraft.typeId] || 12;
-    const flightsPerDay = calculateFlightsPerDay(roundTripTime, maxHours);
+    const maxFlightsPerDay = calculateFlightsPerDay(roundTripTime, maxHours);
     
-    if (flightsPerDay < 1) {
+    if (maxFlightsPerDay < 1) {
         return { success: false, message: `Route requires ${roundTripTime.toFixed(1)}h round trip but aircraft only has ${maxHours}h/day` };
     }
     
@@ -308,7 +308,8 @@ export function createRoute(state, originCode, destinationCode, aircraftId) {
         reputation: state.airline.reputation,
         status: 'active',
         roundTripTime: Math.round(roundTripTime * 10) / 10,
-        flightsPerDay: flightsPerDay,
+        flightsPerDay: 1,
+        maxFlightsPerDay: maxFlightsPerDay,
         monthlyFlights: 0,
         monthlyRevenue: 0,
         monthlyPassengers: 0,
@@ -321,9 +322,9 @@ export function createRoute(state, originCode, destinationCode, aircraftId) {
     
     state.routes.push(route);
     
-    addNews(state, `Opened new route ${originCode}-${destinationCode} (${flightsPerDay} flights/day, ${roundTripTime.toFixed(1)}h round trip)`, 'positive');
+    addNews(state, `Opened new route ${originCode}-${destinationCode} (1 flight/day, ${roundTripTime.toFixed(1)}h round trip)`, 'positive');
     
-    return { success: true, route, ticketPrice, roundTripTime, flightsPerDay };
+    return { success: true, route, ticketPrice, roundTripTime, flightsPerDay: 1 };
 }
 
 export function closeRoute(state, routeId) {
@@ -357,6 +358,22 @@ export function adjustTicketPrice(state, routeId, newPrice) {
     
     route.ticketPrice = Math.max(10, Math.round(newPrice));
     return { success: true };
+}
+
+export function adjustFlightsPerDay(state, routeId, newFlights) {
+    const route = state.routes.find(r => r.id === routeId);
+    if (!route) return { success: false, message: 'Route not found' };
+    
+    const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
+    if (!aircraft) return { success: false, message: 'Aircraft not found' };
+    
+    const maxFlights = route.maxFlightsPerDay || calculateFlightsPerDay(route.roundTripTime, MAX_FLIGHT_HOURS[aircraft.typeId] || 12);
+    
+    if (newFlights < 1) return { success: false, message: 'Minimum 1 flight per day' };
+    if (newFlights > maxFlights) return { success: false, message: `Maximum ${maxFlights} flights per day for this route` };
+    
+    route.flightsPerDay = newFlights;
+    return { success: true, flightsPerDay: newFlights, maxFlightsPerDay: maxFlights };
 }
 
 export function assignAircraft(state, routeId, aircraftId) {
@@ -490,21 +507,11 @@ export function assignStaffToRoute(state, routeId, staffIds) {
     const aircraft = state.aircraft.find(a => a.id === route.aircraftId);
     if (!aircraft) return { success: false, message: 'Aircraft not found' };
     
-    const requirements = STAFF_REQUIREMENTS[aircraft.typeId] || {};
-    
-    const roleCounts = {};
     for (const staffId of staffIds) {
         const staff = state.staff.find(s => s.id === staffId);
         if (!staff) return { success: false, message: `Staff ${staffId} not found` };
         if (staff.assignedRoute && staff.assignedRoute !== routeId) {
             return { success: false, message: `${staff.name} is already assigned to another route` };
-        }
-        roleCounts[staff.role] = (roleCounts[staff.role] || 0) + 1;
-    }
-    
-    for (const [role, count] of Object.entries(requirements)) {
-        if ((roleCounts[role] || 0) < count) {
-            return { success: false, message: `Need ${count} ${role}s but only ${roleCounts[role] || 0} selected` };
         }
     }
     
