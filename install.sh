@@ -290,21 +290,20 @@ deploy_game() {
     pct push "$CTID" "$GAME_DIR/js/main.js" "$INSTALL_DIR/js/main.js"
 
     info "Configuring nginx..."
-    pct exec "$CTID" -- bash -c "
-        cat > /etc/nginx/sites-available/skytycoon <<'NGINXEOF'
+    pct exec "$CTID" -- bash -c 'cat > /etc/nginx/sites-available/skytycoon << NGINXEOF
 server {
-    listen ${LISTEN_PORT};
+    listen '"${LISTEN_PORT}"';
     server_name _;
-    root ${INSTALL_DIR};
+    root '"${INSTALL_DIR}"';
     index index.html;
 
     location / {
-        try_files \\\$uri \\\$uri/ =404;
-        add_header Cache-Control \"no-cache, no-store, must-revalidate\";
+        try_files $uri $uri/ =404;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 
-    location ~* \\\.(js|css)$ {
-        add_header Content-Type \"application/javascript\";
+    location ~* \.(js|css)$ {
+        add_header Content-Type "application/javascript";
         expires 1h;
     }
 }
@@ -314,7 +313,7 @@ NGINXEOF
         rm -f /etc/nginx/sites-enabled/default
         systemctl enable -q nginx
         systemctl restart nginx
-    "
+    '
 
     log "Game deployed and nginx configured"
 
