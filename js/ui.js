@@ -334,34 +334,53 @@ function showStaffAssignmentModal(routeId) {
             </div>`;
     }
     
-    html += `</div><div style="margin-bottom: 12px;">
-            <div style="font-weight: 600; margin-bottom: 8px">Select Staff to Assign</div>`;
+    html += `</div>`;
     
-    for (const [role, count] of Object.entries(requirements)) {
-        const available = getAvailableStaff(state, role);
-        const alreadyAssigned = state.staff.filter(s => s.assignedRoute === routeId && s.role === role).length;
-        const stillNeeded = count - alreadyAssigned;
+    const totalStaff = state.staff.length;
+    const unassignedStaff = state.staff.filter(s => !s.assignedRoute).length;
+    
+    if (totalStaff === 0) {
+        html += `<div style="padding: 16px; text-align: center; color: var(--text-muted);">
+            <p>No staff hired yet. Go to the <strong>Staff</strong> tab to hire crew first.</p>
+        </div>`;
+    } else if (unassignedStaff === 0) {
+        html += `<div style="padding: 16px; text-align: center; color: var(--text-muted);">
+            <p>All staff are assigned to other routes. Hire more staff or unassign from other routes.</p>
+        </div>`;
+    } else {
+        html += `<div style="margin-bottom: 12px;">
+            <div style="font-weight: 600; margin-bottom: 8px">Select Staff to Assign</div>`;
         
-        if (available.length === 0) continue;
-        
-        html += `<div style="margin-bottom: 8px;">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">${role.replace(/([A-Z])/g, ' $1').trim()} (need ${stillNeeded} more)</div>`;
-        
-        for (const staff of available) {
-            html += `
-                <label style="display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer;">
-                    <input type="checkbox" class="staff-checkbox" value="${staff.id}" data-role="${staff.role}">
-                    ${staff.name} - ${formatMoney(staff.salary)}/mo
-                </label>`;
+        for (const [role, count] of Object.entries(requirements)) {
+            const available = getAvailableStaff(state, role);
+            const alreadyAssigned = state.staff.filter(s => s.assignedRoute === routeId && s.role === role).length;
+            const stillNeeded = count - alreadyAssigned;
+            
+            if (available.length === 0) {
+                html += `<div style="margin-bottom: 8px;">
+                    <div style="font-size: 12px; color: var(--red); margin-bottom: 4px">${role.replace(/([A-Z])/g, ' $1').trim()} — no unassigned ${role}s available (need ${stillNeeded} more)</div>
+                </div>`;
+                continue;
+            }
+            
+            html += `<div style="margin-bottom: 8px;">
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px">${role.replace(/([A-Z])/g, ' $1').trim()} (need ${stillNeeded} more)</div>`;
+            
+            for (const staff of available) {
+                html += `
+                    <label style="display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer;">
+                        <input type="checkbox" class="staff-checkbox" value="${staff.id}" data-role="${staff.role}">
+                        ${staff.name} - ${formatMoney(staff.salary)}/mo
+                    </label>`;
+            }
+            html += `</div>`;
         }
         html += `</div>`;
     }
     
-    html += `</div>`;
-    
     showModal('Assign Staff to Route', html, `
-        <button class="btn" onclick="window._skipStaffAssignment('${routeId}')">Skip for Now</button>
-        <button class="btn btn-primary" onclick="window._assignStaffToRoute('${routeId}')">Assign Staff</button>
+        <button class="btn" onclick="window._skipStaffAssignment('${routeId}')">Close</button>
+        ${unassignedStaff > 0 ? `<button class="btn btn-primary" onclick="window._assignStaffToRoute('${routeId}')">Assign Staff</button>` : ''}
     `);
 }
 
