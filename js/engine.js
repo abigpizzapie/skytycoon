@@ -632,7 +632,6 @@ export function loadGame() {
         return null;
     }
 }
-}
 
 export function deleteSave() {
     localStorage.removeItem('skytycoon_save');
