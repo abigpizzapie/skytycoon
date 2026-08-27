@@ -499,6 +499,7 @@ body {
     z-index: 1000;
 }
 
+.hidden { display: none !important; }
 #modal-overlay.hidden { display: none; }
 
 .modal {

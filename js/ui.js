@@ -975,12 +975,16 @@ function renderStaff() {
     }
 
     if (unassigned.length > 0) {
-        const totalSalary = unassigned.reduce((s, st) => s + st.salary, 0);
-        html += `
-            <div style="margin-bottom: 16px">
-                <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; padding-left: 4px;">Unassigned Staff (${unassigned.length} • ${formatMoney(totalSalary)}/mo)</div>
-                ${unassigned.map(s => renderStaffCard(s)).join('')}
-            </div>`;
+        const aircraftRoles = new Set(Object.values(STAFF_REQUIREMENTS).flatMap(r => Object.keys(r)));
+        const neededUnassigned = unassigned.filter(s => aircraftRoles.has(s.role));
+        if (neededUnassigned.length > 0) {
+            const totalSalary = neededUnassigned.reduce((s, st) => s + st.salary, 0);
+            html += `
+                <div style="margin-bottom: 16px">
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; padding-left: 4px;">Unassigned Staff (${neededUnassigned.length} • ${formatMoney(totalSalary)}/mo)</div>
+                    ${neededUnassigned.map(s => renderStaffCard(s)).join('')}
+                </div>`;
+        }
     }
 
     container.innerHTML = html;
