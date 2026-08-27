@@ -977,12 +977,23 @@ function renderStaff() {
     if (unassigned.length > 0) {
         const aircraftRoles = new Set(Object.values(STAFF_REQUIREMENTS).flatMap(r => Object.keys(r)));
         const neededUnassigned = unassigned.filter(s => aircraftRoles.has(s.role));
+        const groundStaff = unassigned.filter(s => !aircraftRoles.has(s.role));
+
         if (neededUnassigned.length > 0) {
             const totalSalary = neededUnassigned.reduce((s, st) => s + st.salary, 0);
             html += `
                 <div style="margin-bottom: 16px">
                     <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; padding-left: 4px;">Unassigned Staff (${neededUnassigned.length} • ${formatMoney(totalSalary)}/mo)</div>
                     ${neededUnassigned.map(s => renderStaffCard(s)).join('')}
+                </div>`;
+        }
+
+        if (groundStaff.length > 0) {
+            const totalSalary = groundStaff.reduce((s, st) => s + st.salary, 0);
+            html += `
+                <div style="margin-bottom: 16px">
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; padding-left: 4px;">Ground & Support Staff (${groundStaff.length} • ${formatMoney(totalSalary)}/mo)</div>
+                    ${groundStaff.map(s => renderStaffCard(s)).join('')}
                 </div>`;
         }
     }
