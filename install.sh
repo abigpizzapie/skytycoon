@@ -12,7 +12,7 @@
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/abigpizzapie/skytycoon/main/install.sh)" -- --ctid 250 --ram 1024
 # ============================================================
 
-set -euo pipefail
+set -uo pipefail
 
 # ── Defaults ───────────────────────────────────────────────
 APP_NAME="SkyTycoon"
@@ -207,10 +207,14 @@ install_container() {
 
     if ! pvesm list "$CT_STORAGE" | grep -q "$TEMPLATE"; then
         info "Downloading template: $TEMPLATE"
-        pveam download "$CT_STORAGE" "$TEMPLATE" >/dev/null 2>&1
+        info "(this may take a few minutes...)"
+        pveam download "$CT_STORAGE" "$TEMPLATE"
         log "Template downloaded"
+    else
+        log "Template already cached"
     fi
 
+    info "Creating container (this may take a minute)..."
     pct create "$CTID" "${CT_STORAGE}:vztmpl/${TEMPLATE}" \
         --hostname "$CT_HOSTNAME" \
         --memory "$CT_RAM" \
@@ -219,12 +223,12 @@ install_container() {
         --net0 "name=eth0,bridge=${CT_BRIDGE},ip=dhcp" \
         --password "$CT_PASSWORD" \
         --unprivileged 1 \
-        --features "nesting=1" >/dev/null 2>&1
+        --features "nesting=1"
 
     log "Container $CTID created"
 
     info "Starting container..."
-    pct start "$CTID" >/dev/null 2>&1
+    pct start "$CTID"
     sleep 5
 
     info "Waiting for network..."
@@ -248,9 +252,9 @@ install_container() {
 deploy_game() {
     info "Installing nginx..."
     pct exec "$CTID" -- bash -c "
-        apt-get update -qq >/dev/null 2>&1
-        apt-get install -y -qq nginx >/dev/null 2>&1
-    " 2>/dev/null
+        apt-get update -qq
+        apt-get install -y -qq nginx
+    "
     log "Nginx installed"
 
     info "Deploying game files..."
@@ -284,7 +288,7 @@ NGINXEOF
         rm -f /etc/nginx/sites-enabled/default
         systemctl enable -q nginx
         systemctl restart nginx
-    " 2>/dev/null
+    "
 
     log "Game deployed and nginx configured"
 
