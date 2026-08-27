@@ -770,28 +770,36 @@ export async function saveGame(state) {
     const data = JSON.stringify(state);
     try { localStorage.setItem('skytycoon_save', data); } catch (e) {}
     const playerId = getPlayerId();
+    const url = `${API_BASE}?player=${playerId}`;
     try {
-        const resp = await fetch(`${API_BASE}?player=${playerId}`, {
+        const resp = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: data,
             signal: AbortSignal.timeout(5000)
         });
-        const result = await resp.json();
+        const text = await resp.text();
+        console.log('[Save]', resp.status, text);
+        const result = JSON.parse(text);
         return result.ok === true;
     } catch (e) {
+        console.error('[Save] Failed:', e.message);
         return true;
     }
 }
 
 export async function loadGame() {
     const playerId = getPlayerId();
+    const url = `${API_BASE}?player=${playerId}`;
+    console.log('[Load] Fetching:', url);
     try {
-        const resp = await fetch(`${API_BASE}?player=${playerId}`, {
+        const resp = await fetch(url, {
             signal: AbortSignal.timeout(5000)
         });
+        const text = await resp.text();
+        console.log('[Load]', resp.status, text.substring(0, 200));
         if (resp.ok) {
-            const data = await resp.json();
+            const data = JSON.parse(text);
             if (data && data.airline) {
                 if (data.airline.currency) {
                     currencySymbol = data.airline.currency.symbol;
@@ -801,7 +809,9 @@ export async function loadGame() {
                 return data;
             }
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('[Load] Failed:', e.message);
+    }
     try {
         const d = localStorage.getItem('skytycoon_save');
         if (!d) return null;
