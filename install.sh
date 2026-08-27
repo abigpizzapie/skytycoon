@@ -302,7 +302,7 @@ server {
         add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 
-    location ~* \.(js|css)$ {
+    location ~* \.js$ {
         add_header Content-Type "application/javascript";
         expires 1h;
     }
