@@ -637,4 +637,4 @@ export function deleteSave() {
     localStorage.removeItem('skytycoon_save');
 }
 
-export { formatMoney, haversineDistance };
+export { haversineDistance };
