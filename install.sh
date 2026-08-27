@@ -198,12 +198,21 @@ install_container() {
     echo ""
     info "Creating LXC container $CTID..."
 
-    TEMPLATE=$(pveam available --section system | grep -E "debian.*13.*standard" | tail -1 | awk '{print $2}')
+    ARCH=$(uname -m)
+    case "$ARCH" in
+        x86_64)  ARCH_PATTERN="amd64" ;;
+        aarch64) ARCH_PATTERN="arm64" ;;
+        *)       ARCH_PATTERN="amd64" ;;
+    esac
+    info "Detected architecture: $ARCH ($ARCH_PATTERN)"
+
+    TEMPLATE=$(pveam available --section system | grep -E "debian.*13.*standard.*${ARCH_PATTERN}" | tail -1 | awk '{print $2}')
     if [[ -z "$TEMPLATE" ]]; then
-        TEMPLATE=$(pveam available --section system | grep -E "debian.*12.*standard" | tail -1 | awk '{print $2}')
+        TEMPLATE=$(pveam available --section system | grep -E "debian.*12.*standard.*${ARCH_PATTERN}" | tail -1 | awk '{print $2}')
     fi
     if [[ -z "$TEMPLATE" ]]; then
-        err "Could not find a Debian template. Check your pveam repository."
+        err "No Debian template found for $ARCH_PATTERN. Available:"
+        pveam available --section system | grep debian
         exit 1
     fi
 
