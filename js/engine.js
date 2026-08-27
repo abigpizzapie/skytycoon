@@ -621,6 +621,8 @@ export function processMonth(state) {
         const routeExpenses = fuelCost + maintenanceCost;
         
         route.monthlyRevenue = revenue;
+        route.monthlyExpenses = Math.round(routeExpenses);
+        route.monthlyProfit = revenue - Math.round(routeExpenses);
         route.monthlyPassengers = passengers;
         route.monthlyFlights = monthlyFlights;
         route.loadFactor = Math.round(loadFactor * 100);

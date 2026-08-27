@@ -545,13 +545,18 @@ function renderDashboard() {
     if (state.routes.length === 0) {
         routesContainer.innerHTML = '<div class="empty-state"><p>No active routes yet</p></div>';
     } else {
-        routesContainer.innerHTML = state.routes.slice(0, 5).map(route => `
+        routesContainer.innerHTML = state.routes.slice(0, 5).map(route => {
+            const profit = route.monthlyProfit || 0;
+            const profitColor = profit > 0 ? 'var(--green)' : profit < 0 ? 'var(--red)' : 'var(--text-dim)';
+            const loadColor = route.loadFactor > 70 ? 'var(--green)' : route.loadFactor > 40 ? 'var(--yellow)' : 'var(--red)';
+            return `
             <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;">
                 <span style="font-family: monospace; font-weight: 600">${route.origin}-${route.destination}</span>
+                <span style="color: ${loadColor}">${route.loadFactor}% load</span>
                 <span style="color: var(--text-dim)">${route.monthlyPassengers} pax</span>
-                <span style="color: ${route.monthlyRevenue > 0 ? 'var(--green)' : 'var(--text-dim)'}">${formatMoney(route.monthlyRevenue)}</span>
-            </div>
-        `).join('');
+                <span style="color: ${profitColor}">${formatMoney(profit)}/mo</span>
+            </div>`;
+        }).join('');
     }
     
     // News feed
