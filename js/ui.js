@@ -874,6 +874,30 @@ window._repayLoan = () => {
 };
 
 // ========== STAFF ==========
+function renderStaffCard(staff) {
+    const ac = staff.assignedAircraft ? state.aircraft.find(a => a.id === staff.assignedAircraft) : null;
+    return `
+        <div class="staff-card">
+            <div class="staff-info">
+                <div class="staff-avatar">${staff.name.charAt(0)}</div>
+                <div>
+                    <div class="staff-name">${staff.name}</div>
+                    <div class="staff-role">${staff.role} • Hired ${staff.hired}</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div style="text-align: right">
+                    <div style="font-size: 12px; color: var(--text-muted)">Morale</div>
+                    <div class="progress-bar" style="width: 80px">
+                        <div class="fill ${staff.morale > 70 ? 'green' : staff.morale > 40 ? 'yellow' : 'red'}" style="width: ${staff.morale}%"></div>
+                    </div>
+                </div>
+                <span class="staff-salary">${formatMoney(staff.salary)}/mo</span>
+                <button class="btn btn-sm btn-danger" onclick="window._fireStaff('${staff.id}')" ${staff.assignedAircraft ? 'disabled title="Unassign from aircraft first"' : ''}>Fire</button>
+            </div>
+        </div>`;
+}
+
 function renderStaff() {
     const container = document.getElementById('staff-list');
     
@@ -905,34 +929,61 @@ function renderStaff() {
             </div>`;
         return;
     }
-    
-    container.innerHTML = csBanner + state.staff.map(staff => {
-        const ac = staff.assignedAircraft ? state.aircraft.find(a => a.id === staff.assignedAircraft) : null;
-        const acText = ac ? ac.name : 'Unassigned';
-        const acColor = ac ? 'var(--green)' : 'var(--text-muted)';
-        
-        return `
-            <div class="staff-card">
-                <div class="staff-info">
-                    <div class="staff-avatar">${staff.name.charAt(0)}</div>
-                    <div>
-                        <div class="staff-name">${staff.name}</div>
-                        <div class="staff-role">${staff.role} • Hired ${staff.hired}</div>
-                        <div style="font-size: 12px; color: ${acColor}">${acText}</div>
-                    </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <div style="text-align: right">
-                        <div style="font-size: 12px; color: var(--text-muted)">Morale</div>
-                        <div class="progress-bar" style="width: 80px">
-                            <div class="fill ${staff.morale > 70 ? 'green' : staff.morale > 40 ? 'yellow' : 'red'}" style="width: ${staff.morale}%"></div>
+
+    const grouped = {};
+    const unassigned = [];
+    for (const staff of state.staff) {
+        if (staff.assignedAircraft) {
+            if (!grouped[staff.assignedAircraft]) grouped[staff.assignedAircraft] = [];
+            grouped[staff.assignedAircraft].push(staff);
+        } else {
+            unassigned.push(staff);
+        }
+    }
+
+    let html = csBanner;
+
+    const assignedAircraftIds = Object.keys(grouped);
+    if (assignedAircraftIds.length > 0) {
+        html += '<div style="margin-bottom: 16px">';
+        for (const acId of assignedAircraftIds) {
+            const ac = state.aircraft.find(a => a.id === acId);
+            const staffList = grouped[acId];
+            const acName = ac ? ac.name : 'Unknown Aircraft';
+            const acType = ac ? ac.category : '';
+            const routeCount = ac ? (ac.assignedRoutes || []).length : 0;
+            const collapseId = `staff-group-${acId}`;
+            const salaryTotal = staffList.reduce((s, st) => s + st.salary, 0);
+
+            html += `
+                <div class="staff-group" style="margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+                    <div style="padding: 10px 14px; background: var(--bg-dark); cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;" onclick="document.getElementById('${collapseId}').classList.toggle('hidden'); this.querySelector('.chevron').textContent = this.querySelector('.chevron').textContent === '▸' ? '▾' : '▸'">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="chevron" style="font-size: 14px; color: var(--text-muted); width: 14px;">▸</span>
+                            <div>
+                                <div style="font-weight: 600; font-size: 13px;">${acName}</div>
+                                <div style="font-size: 11px; color: var(--text-muted)">${acType} • ${staffList.length} staff • ${routeCount} route(s) • ${formatMoney(salaryTotal)}/mo</div>
+                            </div>
                         </div>
                     </div>
-                    <span class="staff-salary">${formatMoney(staff.salary)}/mo</span>
-                    <button class="btn btn-sm btn-danger" onclick="window._fireStaff('${staff.id}')" ${staff.assignedAircraft ? 'disabled title="Unassign from aircraft first"' : ''}>Fire</button>
-                </div>
+                    <div id="${collapseId}" class="hidden" style="padding: 4px 0;">
+                        ${staffList.map(s => renderStaffCard(s)).join('')}
+                    </div>
+                </div>`;
+        }
+        html += '</div>';
+    }
+
+    if (unassigned.length > 0) {
+        const totalSalary = unassigned.reduce((s, st) => s + st.salary, 0);
+        html += `
+            <div style="margin-bottom: 16px">
+                <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; padding-left: 4px;">Unassigned Staff (${unassigned.length} • ${formatMoney(totalSalary)}/mo)</div>
+                ${unassigned.map(s => renderStaffCard(s)).join('')}
             </div>`;
-    }).join('');
+    }
+
+    container.innerHTML = html;
 }
 
 window._fireStaff = (staffId) => {
